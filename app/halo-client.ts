@@ -91,18 +91,34 @@ export class HaloProtocolClient {
       this.program.programId
     );
 
+    // Check if user has trust score
+    const trustScoreAccount = this.getTrustScorePDA(member.publicKey);
+    let trustScoreExists = true;
+    try {
+      await this.getTrustScoreInfo(trustScoreAccount);
+    } catch (error) {
+      trustScoreExists = false;
+    }
+
+    const accounts = {
+      circle: circleAccount,
+      member: memberAccount,
+      escrow: escrowAccount,
+      memberAuthority: member.publicKey,
+      memberTokenAccount: memberTokenAccount,
+      escrowTokenAccount: escrowTokenAccount,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    } as any;
+
+    // Only include trust score account if it exists
+    if (trustScoreExists) {
+      accounts.trustScore = trustScoreAccount;
+    }
+
     const tx = await this.program.methods
       .joinCircle(new anchor.BN(stakeAmount))
-      .accounts({
-        circle: circleAccount,
-        member: memberAccount,
-        escrow: escrowAccount,
-        memberAuthority: member.publicKey,
-        memberTokenAccount: memberTokenAccount,
-        escrowTokenAccount: escrowTokenAccount,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
+      .accounts(accounts)
       .signers([member])
       .rpc();
 
@@ -124,17 +140,33 @@ export class HaloProtocolClient {
     escrowTokenAccount: PublicKey,
     amount: number
   ) {
+    // Check if user has trust score
+    const trustScoreAccount = this.getTrustScorePDA(member.publicKey);
+    let trustScoreExists = true;
+    try {
+      await this.getTrustScoreInfo(trustScoreAccount);
+    } catch (error) {
+      trustScoreExists = false;
+    }
+
+    const accounts = {
+      circle: circleAccount,
+      member: memberAccount,
+      escrow: escrowAccount,
+      memberAuthority: member.publicKey,
+      memberTokenAccount: memberTokenAccount,
+      escrowTokenAccount: escrowTokenAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    } as any;
+
+    // Only include trust score account if it exists
+    if (trustScoreExists) {
+      accounts.trustScore = trustScoreAccount;
+    }
+
     const tx = await this.program.methods
       .contribute(new anchor.BN(amount))
-      .accounts({
-        circle: circleAccount,
-        member: memberAccount,
-        escrow: escrowAccount,
-        memberAuthority: member.publicKey,
-        memberTokenAccount: memberTokenAccount,
-        escrowTokenAccount: escrowTokenAccount,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
+      .accounts(accounts)
       .signers([member])
       .rpc();
 
@@ -225,6 +257,196 @@ export class HaloProtocolClient {
     );
 
     return memberAccount;
+  }
+
+  /**
+   * Generate trust score PDA
+   */
+  getTrustScorePDA(userPublicKey: PublicKey) {
+    const [trustScoreAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("trust_score"), userPublicKey.toBuffer()],
+      this.program.programId
+    );
+
+    return trustScoreAccount;
+  }
+
+  /**
+   * Initialize trust score for a user
+   */
+  async initializeTrustScore(user: anchor.web3.Keypair) {
+    const trustScoreAccount = this.getTrustScorePDA(user.publicKey);
+
+    const tx = await this.program.methods
+      .initializeTrustScore()
+      .accounts({
+        trustScore: trustScoreAccount,
+        authority: user.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([user])
+      .rpc();
+
+    return {
+      trustScoreAccount,
+      transaction: tx,
+    };
+  }
+
+  /**
+   * Update trust score for a user
+   */
+  async updateTrustScore(user: anchor.web3.Keypair) {
+    const trustScoreAccount = this.getTrustScorePDA(user.publicKey);
+
+    const tx = await this.program.methods
+      .updateTrustScore()
+      .accounts({
+        trustScore: trustScoreAccount,
+        authority: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Add social proof to trust score
+   */
+  async addSocialProof(
+    user: anchor.web3.Keypair,
+    proofType: string,
+    identifier: string
+  ) {
+    const trustScoreAccount = this.getTrustScorePDA(user.publicKey);
+
+    const tx = await this.program.methods
+      .addSocialProof(proofType, identifier)
+      .accounts({
+        trustScore: trustScoreAccount,
+        authority: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Verify social proof (requires verifier authority)
+   */
+  async verifySocialProof(
+    userPublicKey: PublicKey,
+    verifier: anchor.web3.Keypair,
+    proofType: string,
+    identifier: string
+  ) {
+    const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
+
+    const tx = await this.program.methods
+      .verifySocialProof(proofType, identifier)
+      .accounts({
+        trustScore: trustScoreAccount,
+        verifier: verifier.publicKey,
+      })
+      .signers([verifier])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Update DeFi activity score (requires oracle authority)
+   */
+  async updateDefiActivityScore(
+    userPublicKey: PublicKey,
+    oracle: anchor.web3.Keypair,
+    activityScore: number
+  ) {
+    const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
+
+    const tx = await this.program.methods
+      .updateDefiActivityScore(activityScore)
+      .accounts({
+        trustScore: trustScoreAccount,
+        oracle: oracle.publicKey,
+      })
+      .signers([oracle])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Get trust score information
+   */
+  async getTrustScoreInfo(trustScoreAccount: PublicKey) {
+    return await this.program.account.trustScore.fetch(trustScoreAccount);
+  }
+
+  /**
+   * Calculate minimum stake requirement for a user based on trust tier
+   */
+  async getMinimumStakeRequirement(
+    userPublicKey: PublicKey,
+    baseContributionAmount: number
+  ) {
+    try {
+      const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
+      const trustScore = await this.getTrustScoreInfo(trustScoreAccount);
+      
+      const multiplier = this.getTierStakeMultiplier(trustScore.tier);
+      return Math.floor((baseContributionAmount * multiplier) / 100);
+    } catch (error) {
+      // If trust score doesn't exist, return newcomer requirement (2x)
+      return baseContributionAmount * 2;
+    }
+  }
+
+  /**
+   * Get stake multiplier for trust tier
+   */
+  getTierStakeMultiplier(tier: any): number {
+    if (tier.newcomer) return 200; // 2x
+    if (tier.silver) return 150;   // 1.5x
+    if (tier.gold) return 100;     // 1x
+    if (tier.platinum) return 75;  // 0.75x
+    return 200; // Default to newcomer
+  }
+
+  /**
+   * Update trust score after circle completion
+   */
+  async completeCircleUpdateTrust(
+    userPublicKey: PublicKey,
+    circleAccount: PublicKey,
+    authority: anchor.web3.Keypair
+  ) {
+    const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
+
+    const tx = await this.program.methods
+      .completeCircleUpdateTrust()
+      .accounts({
+        trustScore: trustScoreAccount,
+        circle: circleAccount,
+        authority: authority.publicKey,
+      })
+      .signers([authority])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Get trust tier name as string
+   */
+  getTierName(tier: any): string {
+    if (tier.newcomer) return "Newcomer";
+    if (tier.silver) return "Silver";
+    if (tier.gold) return "Gold";
+    if (tier.platinum) return "Platinum";
+    return "Newcomer";
   }
 }
 

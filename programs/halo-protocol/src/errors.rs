@@ -40,4 +40,14 @@ pub enum HaloError {
     InvalidMaxMembers,
     #[msg("Circle has already ended")]
     CircleEnded,
+    #[msg("Trust score account not found")]
+    TrustScoreNotFound,
+    #[msg("Invalid trust tier")]
+    InvalidTrustTier,
+    #[msg("Insufficient trust score")]
+    InsufficientTrustScore,
+    #[msg("Social proof already exists")]
+    SocialProofAlreadyExists,
+    #[msg("Invalid social proof")]
+    InvalidSocialProof,
 }
