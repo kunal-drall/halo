@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::errors::HaloError;
-use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution};
+use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution, TrustScore, TrustTier, SocialProof};
 
 pub fn initialize_circle(
     ctx: Context<InitializeCircle>,
@@ -52,10 +52,23 @@ pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
 
     require!(circle.status == CircleStatus::Active, HaloError::CircleNotActive);
     require!(circle.current_members < circle.max_members, HaloError::CircleFull);
-    require!(stake_amount >= circle.contribution_amount, HaloError::InsufficientStake);
-
+    
     // Check if member already exists
     require!(!circle.members.contains(&ctx.accounts.member_authority.key()), HaloError::MemberAlreadyExists);
+
+    // Get trust score if available, otherwise use default (Newcomer tier)
+    let (trust_score, trust_tier, minimum_stake_required) = if let Some(trust_score_account) = &ctx.accounts.trust_score {
+        let trust_score = trust_score_account.score;
+        let trust_tier = trust_score_account.tier.clone();
+        let stake_multiplier = trust_score_account.get_minimum_stake_multiplier();
+        let min_stake = (circle.contribution_amount * stake_multiplier) / 100;
+        (trust_score, trust_tier, min_stake)
+    } else {
+        // Default for new users without trust score
+        (0, TrustTier::Newcomer, circle.contribution_amount * 2) // 2x stake for newcomers
+    };
+
+    require!(stake_amount >= minimum_stake_required, HaloError::InsufficientStake);
 
     // Transfer stake to escrow
     if stake_amount > 0 {
@@ -78,6 +91,9 @@ pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
     member_account.has_received_pot = false;
     member_account.penalties = 0;
     member_account.joined_at = clock.unix_timestamp;
+    member_account.trust_score = trust_score;
+    member_account.trust_tier = trust_tier;
+    member_account.contributions_missed = 0;
     member_account.bump = ctx.bumps.member;
 
     // Add member to circle
@@ -88,7 +104,7 @@ pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
     let escrow = &mut ctx.accounts.escrow;
     escrow.total_amount = escrow.total_amount.checked_add(stake_amount).ok_or(HaloError::ArithmeticOverflow)?;
 
-    msg!("Member {} joined circle", ctx.accounts.member_authority.key());
+    msg!("Member {} joined circle with trust tier {:?}", ctx.accounts.member_authority.key(), member_account.trust_tier);
     Ok(())
 }
 
@@ -128,6 +144,21 @@ pub fn contribute(ctx: Context<Contribute>, amount: u64) -> Result<()> {
     // Record contribution
     member.contribution_history[current_month as usize] = amount;
 
+    // Update member's trust score data if trust score account is available
+    if let Some(trust_score_account) = &mut ctx.accounts.trust_score {
+        trust_score_account.total_contributions = trust_score_account.total_contributions
+            .checked_add(amount)
+            .ok_or(HaloError::ArithmeticOverflow)?;
+        
+        // Recalculate trust score with new contribution data
+        trust_score_account.calculate_score();
+        trust_score_account.last_updated = clock.unix_timestamp;
+        
+        // Update member's cached trust score
+        member.trust_score = trust_score_account.score;
+        member.trust_tier = trust_score_account.tier.clone();
+    }
+
     // Update or create monthly contribution record
     if let Some(monthly_contrib) = circle.monthly_contributions.get_mut(current_month as usize) {
         monthly_contrib.contributions.push(MemberContribution {
@@ -140,9 +171,10 @@ pub fn contribute(ctx: Context<Contribute>, amount: u64) -> Result<()> {
             .ok_or(HaloError::ArithmeticOverflow)?;
     } else {
         // Ensure we have enough space in the vector
-        while circle.monthly_contributions.len() <= current_month as usize {
+        let current_len = circle.monthly_contributions.len();
+        while current_len <= current_month as usize {
             circle.monthly_contributions.push(MonthlyContribution {
-                month: circle.monthly_contributions.len() as u8,
+                month: current_len as u8,
                 contributions: Vec::new(),
                 total_collected: 0,
                 distributed_to: None,
@@ -185,16 +217,18 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
 
     require!(current_month < circle.monthly_contributions.len() as u8, HaloError::NoContributionsToDistribute);
 
-    let monthly_contrib = &mut circle.monthly_contributions[current_month as usize];
-    require!(monthly_contrib.distributed_to.is_none(), HaloError::PotAlreadyDistributed);
-    require!(monthly_contrib.total_collected > 0, HaloError::NoContributionsToDistribute);
-
-    let pot_amount = monthly_contrib.total_collected;
+    let pot_amount = {
+        let monthly_contrib = &mut circle.monthly_contributions[current_month as usize];
+        require!(monthly_contrib.distributed_to.is_none(), HaloError::PotAlreadyDistributed);
+        require!(monthly_contrib.total_collected > 0, HaloError::NoContributionsToDistribute);
+        monthly_contrib.total_collected
+    };
 
     // Transfer pot to recipient
+    let circle_key = circle.key();
     let seeds = &[
         b"escrow",
-        circle.key().as_ref(),
+        circle_key.as_ref(),
         &[escrow.bump],
     ];
     let signer = &[&seeds[..]];
@@ -202,13 +236,14 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
     let cpi_accounts = Transfer {
         from: ctx.accounts.escrow_token_account.to_account_info(),
         to: ctx.accounts.recipient_token_account.to_account_info(),
-        authority: ctx.accounts.escrow.to_account_info(),
+        authority: escrow.to_account_info(),
     };
     let cpi_program = ctx.accounts.token_program.to_account_info();
     let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
     token::transfer(cpi_ctx, pot_amount)?;
 
     // Update records
+    let monthly_contrib = &mut circle.monthly_contributions[current_month as usize];
     monthly_contrib.distributed_to = Some(recipient_member.authority);
     recipient_member.has_received_pot = true;
     escrow.total_amount = escrow.total_amount.checked_sub(pot_amount).ok_or(HaloError::ArithmeticOverflow)?;
@@ -216,6 +251,9 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
     // Check if circle is completed
     if current_month >= circle.duration_months - 1 {
         circle.status = CircleStatus::Completed;
+        
+        // Note: Trust score updates for all members would need to be handled 
+        // in a separate instruction due to Anchor account constraints
     }
 
     msg!("Pot of {} distributed to {} for month {}", pot_amount, recipient_member.authority, current_month);
@@ -236,9 +274,10 @@ pub fn claim_penalty(ctx: Context<ClaimPenalty>) -> Result<()> {
 
     // Transfer penalty from escrow to claimer
     let escrow = &mut ctx.accounts.escrow;
+    let circle_key = circle.key();
     let seeds = &[
         b"escrow",
-        circle.key().as_ref(),
+        circle_key.as_ref(),
         &[escrow.bump],
     ];
     let signer = &[&seeds[..]];
@@ -246,7 +285,7 @@ pub fn claim_penalty(ctx: Context<ClaimPenalty>) -> Result<()> {
     let cpi_accounts = Transfer {
         from: ctx.accounts.escrow_token_account.to_account_info(),
         to: ctx.accounts.claimer_token_account.to_account_info(),
-        authority: ctx.accounts.escrow.to_account_info(),
+        authority: escrow.to_account_info(),
     };
     let cpi_program = ctx.accounts.token_program.to_account_info();
     let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
@@ -280,9 +319,10 @@ pub fn leave_circle(ctx: Context<LeaveCircle>) -> Result<()> {
     // Return stake if available
     if member.stake_amount > 0 {
         let escrow = &mut ctx.accounts.escrow;
+        let circle_key = circle.key();
         let seeds = &[
             b"escrow",
-            circle.key().as_ref(),
+            circle_key.as_ref(),
             &[escrow.bump],
         ];
         let signer = &[&seeds[..]];
@@ -290,7 +330,7 @@ pub fn leave_circle(ctx: Context<LeaveCircle>) -> Result<()> {
         let cpi_accounts = Transfer {
             from: ctx.accounts.escrow_token_account.to_account_info(),
             to: ctx.accounts.member_token_account.to_account_info(),
-            authority: ctx.accounts.escrow.to_account_info(),
+            authority: escrow.to_account_info(),
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
@@ -309,6 +349,130 @@ pub fn leave_circle(ctx: Context<LeaveCircle>) -> Result<()> {
     }
 
     msg!("Member {} left the circle", member.authority);
+    Ok(())
+}
+
+pub fn initialize_trust_score(ctx: Context<InitializeTrustScore>) -> Result<()> {
+    let trust_score = &mut ctx.accounts.trust_score;
+    let clock = Clock::get()?;
+
+    trust_score.authority = ctx.accounts.authority.key();
+    trust_score.score = 0;
+    trust_score.tier = TrustTier::Newcomer;
+    trust_score.payment_history_score = 0;
+    trust_score.completion_score = 0;
+    trust_score.defi_activity_score = 0;
+    trust_score.social_proof_score = 0;
+    trust_score.circles_completed = 0;
+    trust_score.circles_joined = 0;
+    trust_score.total_contributions = 0;
+    trust_score.missed_contributions = 0;
+    trust_score.social_proofs = Vec::new();
+    trust_score.last_updated = clock.unix_timestamp;
+    trust_score.bump = ctx.bumps.trust_score;
+
+    msg!("Trust score initialized for {}", ctx.accounts.authority.key());
+    Ok(())
+}
+
+pub fn update_trust_score(ctx: Context<UpdateTrustScore>) -> Result<()> {
+    let trust_score = &mut ctx.accounts.trust_score;
+    let clock = Clock::get()?;
+
+    // Recalculate trust score based on current data
+    trust_score.calculate_score();
+    trust_score.last_updated = clock.unix_timestamp;
+
+    msg!("Trust score updated for {}: {} points, tier {:?}", 
+         trust_score.authority, trust_score.score, trust_score.tier);
+    Ok(())
+}
+
+pub fn add_social_proof(
+    ctx: Context<AddSocialProof>,
+    proof_type: String,
+    identifier: String,
+) -> Result<()> {
+    let trust_score = &mut ctx.accounts.trust_score;
+    let clock = Clock::get()?;
+
+    require!(trust_score.social_proofs.len() < TrustScore::MAX_SOCIAL_PROOFS, HaloError::InvalidSocialProof);
+    require!(proof_type.len() <= 32 && identifier.len() <= 32, HaloError::InvalidSocialProof);
+
+    // Check if proof already exists
+    for proof in &trust_score.social_proofs {
+        require!(!(proof.proof_type == proof_type && proof.identifier == identifier), 
+                HaloError::SocialProofAlreadyExists);
+    }
+
+    trust_score.social_proofs.push(SocialProof {
+        proof_type: proof_type.clone(),
+        identifier: identifier.clone(),
+        verified: false, // Initially unverified
+        timestamp: clock.unix_timestamp,
+    });
+
+    msg!("Social proof added: {} - {}", proof_type, identifier);
+    Ok(())
+}
+
+pub fn verify_social_proof(
+    ctx: Context<VerifySocialProof>,
+    proof_type: String,
+    identifier: String,
+) -> Result<()> {
+    let trust_score = &mut ctx.accounts.trust_score;
+    
+    // Find and verify the proof
+    let mut found = false;
+    for proof in &mut trust_score.social_proofs {
+        if proof.proof_type == proof_type && proof.identifier == identifier {
+            proof.verified = true;
+            found = true;
+            break;
+        }
+    }
+
+    require!(found, HaloError::InvalidSocialProof);
+
+    // Recalculate trust score after verification
+    trust_score.calculate_score();
+    trust_score.last_updated = Clock::get()?.unix_timestamp;
+
+    msg!("Social proof verified: {} - {}", proof_type, identifier);
+    Ok(())
+}
+
+pub fn update_defi_activity_score(
+    ctx: Context<UpdateDefiActivityScore>,
+    activity_score: u16,
+) -> Result<()> {
+    let trust_score = &mut ctx.accounts.trust_score;
+    
+    require!(activity_score <= 200, HaloError::InvalidSocialProof); // Max 200 points for 20% weight
+    
+    trust_score.defi_activity_score = activity_score;
+    trust_score.calculate_score();
+    trust_score.last_updated = Clock::get()?.unix_timestamp;
+
+    msg!("DeFi activity score updated to: {}", activity_score);
+    Ok(())
+}
+
+pub fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> Result<()> {
+    let trust_score = &mut ctx.accounts.trust_score;
+    let circle = &ctx.accounts.circle;
+    let clock = Clock::get()?;
+    
+    require!(circle.status == CircleStatus::Completed, HaloError::CircleNotActive);
+    require!(circle.members.contains(&trust_score.authority), HaloError::MemberNotFound);
+    
+    // Update trust score for circle completion
+    trust_score.circles_completed += 1;
+    trust_score.calculate_score();
+    trust_score.last_updated = clock.unix_timestamp;
+    
+    msg!("Trust score updated for circle completion: {} points", trust_score.score);
     Ok(())
 }
 
@@ -361,6 +525,12 @@ pub struct JoinCircle<'info> {
     #[account(mut)]
     pub member_authority: Signer<'info>,
     
+    #[account(
+        seeds = [b"trust_score", member_authority.key().as_ref()],
+        bump,
+    )]
+    pub trust_score: Option<Account<'info, TrustScore>>,
+    
     #[account(mut)]
     pub member_token_account: Account<'info, TokenAccount>,
     
@@ -389,6 +559,13 @@ pub struct Contribute<'info> {
     
     #[account(mut)]
     pub member_authority: Signer<'info>,
+    
+    #[account(
+        mut,
+        seeds = [b"trust_score", member_authority.key().as_ref()],
+        bump,
+    )]
+    pub trust_score: Option<Account<'info, TrustScore>>,
     
     #[account(mut)]
     pub member_token_account: Account<'info, TokenAccount>,
@@ -487,4 +664,82 @@ pub struct LeaveCircle<'info> {
     pub escrow_token_account: Account<'info, TokenAccount>,
     
     pub token_program: Program<'info, Token>,
+}
+#[derive(Accounts)]
+pub struct InitializeTrustScore<'info> {
+    #[account(
+        init,
+        payer = authority,
+        space = TrustScore::space(),
+        seeds = [b"trust_score", authority.key().as_ref()],
+        bump
+    )]
+    pub trust_score: Account<'info, TrustScore>,
+    
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateTrustScore<'info> {
+    #[account(
+        mut,
+        seeds = [b"trust_score", authority.key().as_ref()],
+        bump = trust_score.bump
+    )]
+    pub trust_score: Account<'info, TrustScore>,
+    
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct AddSocialProof<'info> {
+    #[account(
+        mut,
+        seeds = [b"trust_score", authority.key().as_ref()],
+        bump = trust_score.bump
+    )]
+    pub trust_score: Account<'info, TrustScore>,
+    
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct VerifySocialProof<'info> {
+    #[account(
+        mut,
+        seeds = [b"trust_score", trust_score.authority.as_ref()],
+        bump = trust_score.bump
+    )]
+    pub trust_score: Account<'info, TrustScore>,
+    
+    pub verifier: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateDefiActivityScore<'info> {
+    #[account(
+        mut,
+        seeds = [b"trust_score", trust_score.authority.as_ref()],
+        bump = trust_score.bump
+    )]
+    pub trust_score: Account<'info, TrustScore>,
+    
+    pub oracle: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct CompleteCircleUpdateTrust<'info> {
+    #[account(
+        mut,
+        seeds = [b"trust_score", trust_score.authority.as_ref()],
+        bump = trust_score.bump
+    )]
+    pub trust_score: Account<'info, TrustScore>,
+    
+    pub circle: Account<'info, Circle>,
+    
+    pub authority: Signer<'info>, // Could be circle creator, member, or governance
 }
