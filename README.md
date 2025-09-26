@@ -1,10 +1,10 @@
-# Halo Protocol - ROSCA Smart Contract
+# Halo Protocol - ROSCA Smart Contract with Solend Integration
 
-A Solana Anchor smart contract that implements ROSCA (Rotating Savings and Credit Association) circles, enabling groups of people to pool funds and take turns receiving the total pot.
+A Solana Anchor smart contract that implements ROSCA (Rotating Savings and Credit Association) circles, enabling groups of people to pool funds and take turns receiving the total pot. Now integrated with Solend for yield generation and lending capabilities.
 
 ## Overview
 
-ROSCA circles are traditional savings groups where members contribute a fixed amount monthly, and each month one member receives the entire pot. Halo Protocol brings this concept to the blockchain with added security, transparency, and programmable rules.
+ROSCA circles are traditional savings groups where members contribute a fixed amount monthly, and each month one member receives the entire pot. Halo Protocol brings this concept to the blockchain with added security, transparency, and programmable rules. With Solend integration, circle funds can earn yield while waiting for distribution.
 
 ## Features
 
@@ -14,6 +14,9 @@ ROSCA circles are traditional savings groups where members contribute a fixed am
 - **Monthly Distributions**: Automated pot distribution with tamper-proof records
 - **Penalty System**: Built-in penalties for defaulting members
 - **Reentrancy Protection**: Secure against common attack vectors
+- **🆕 Solend Integration**: Earn yield on circle funds and enable borrowing against staked collateral
+- **🆕 Market Yields**: Fetch real-time market data for optimal fund allocation
+- **🆕 Lending Services**: Comprehensive deposit, borrow, repay, and withdraw capabilities
 - **Comprehensive Testing**: Full test suite with edge case coverage
 
 ## Smart Contract Architecture
@@ -244,11 +247,127 @@ The current implementation uses a simplified time calculation. Production versio
 ## Future Enhancements
 
 - **Governance**: Decentralized circle management
-- **Insurance**: Optional insurance pools for default protection
-- **Interest**: Yield generation on escrowed funds
+- ~~**Insurance**: Optional insurance pools for default protection~~ ✅ **Implemented via Solend integration**
+- ~~**Interest**: Yield generation on escrowed funds~~ ✅ **Implemented via Solend integration** 
 - **Credit Scoring**: Member reputation system
 - **Mobile App**: User-friendly interface
 - **Multi-token**: Support for various SPL tokens
+
+## Solend Integration
+
+### Overview
+The Halo Protocol now integrates with Solend, Solana's leading lending protocol, to provide yield generation and borrowing capabilities for ROSCA circles.
+
+### Features
+
+#### 🏦 Yield Generation
+- **Automatic Deposits**: Circle escrow funds can be automatically deposited into Solend pools to earn yield
+- **Market-Rate Returns**: Earn competitive interest rates on idle circle funds
+- **Transparent Yields**: Real-time visibility into earned interest for all circle members
+
+#### 💰 Borrowing Capabilities  
+- **Collateralized Loans**: Circle members can borrow against their staked collateral
+- **Flexible Terms**: Access to various borrowing options across different token types
+- **Efficient Capital**: Make productive use of staked funds while maintaining circle security
+
+#### 📊 Market Intelligence
+- **Real-Time Data**: Fetch current market yields and lending rates
+- **Multi-Asset Support**: Support for USDC, SOL, and other major tokens
+- **Optimal Allocation**: Choose the best yield opportunities for circle funds
+
+### Usage
+
+#### Basic Setup
+```typescript
+import { HaloProtocolClient } from './app/halo-client';
+import { Connection } from '@solana/web3.js';
+
+// Initialize client
+const connection = new Connection("https://api.devnet.solana.com");
+const client = new HaloProtocolClient(program);
+
+// Initialize Solend integration
+await client.initializeSolend();
+```
+
+#### Deposit Circle Funds for Yield
+```typescript
+// Deposit circle funds into Solend for yield generation
+const signature = await client.depositCircleFundsToSolend(
+  circleAccount,
+  tokenMint,
+  amount,
+  escrowTokenAccount,
+  circleAuthority
+);
+```
+
+#### Fetch Market Yields
+```typescript
+// Get current market data
+const yields = await client.getSolendMarketYields();
+console.log(`USDC Deposit APY: ${yields.reserves[0].depositApy}%`);
+```
+
+#### Member Borrowing
+```typescript
+// Allow members to borrow against collateral
+const signature = await client.borrowFromSolend(
+  circleAccount,
+  collateralMint,
+  borrowMint,
+  borrowAmount,
+  memberTokenAccount,
+  circleAuthority
+);
+```
+
+### Service Layer
+
+The `SolendService` class provides a clean abstraction over Solend's lending protocol:
+
+- **`depositCircleFunds()`** - Deposit tokens into Solend pools
+- **`borrowAgainstCollateral()`** - Borrow tokens using collateral
+- **`repayLoan()`** - Repay borrowed amounts
+- **`withdrawFunds()`** - Withdraw deposited tokens
+- **`fetchMarketYields()`** - Get current market data
+- **`getUserPosition()`** - Check user's lending positions
+
+### Examples
+
+Run the Solend integration example:
+```bash
+npm run example:solend
+```
+
+This demonstrates:
+- Service initialization
+- Market data fetching
+- All lending operations (deposit, borrow, repay, withdraw)
+- Error handling and edge cases
+
+### Integration Benefits
+
+1. **Enhanced Returns**: Circle funds earn yield instead of sitting idle
+2. **Capital Efficiency**: Members can access liquidity against their stakes
+3. **Risk Management**: Diversified yield sources reduce overall risk
+4. **Transparency**: All operations recorded on-chain with full visibility
+
+### Development & Testing
+
+The integration includes comprehensive test coverage:
+
+```bash
+# Run Solend integration tests
+npm run test:solend
+```
+
+Tests cover:
+- Service initialization on devnet
+- Market data retrieval
+- All lending operations
+- Error handling and edge cases
+- Mock data validation
 
 ## Contributing
 
