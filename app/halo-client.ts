@@ -416,6 +416,29 @@ export class HaloProtocolClient {
   }
 
   /**
+   * Update trust score after circle completion
+   */
+  async completeCircleUpdateTrust(
+    userPublicKey: PublicKey,
+    circleAccount: PublicKey,
+    authority: anchor.web3.Keypair
+  ) {
+    const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
+
+    const tx = await this.program.methods
+      .completeCircleUpdateTrust()
+      .accounts({
+        trustScore: trustScoreAccount,
+        circle: circleAccount,
+        authority: authority.publicKey,
+      })
+      .signers([authority])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
    * Get trust tier name as string
    */
   getTierName(tier: any): string {
