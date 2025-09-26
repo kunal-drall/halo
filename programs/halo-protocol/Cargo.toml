@@ -1,0 +1,21 @@
+[package]
+name = "halo-protocol"
+version = "0.1.0"
+description = "Solana Anchor smart contract for ROSCA circles"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "halo_protocol"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.29.0"
+anchor-spl = "0.29.0"
+spl-token = { version = "4.0.0", features = ["no-entrypoint"] }
