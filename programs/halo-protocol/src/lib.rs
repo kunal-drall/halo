@@ -75,4 +75,8 @@ pub mod halo_protocol {
     ) -> Result<()> {
         instructions::update_defi_activity_score(ctx, activity_score)
     }
+
+    pub fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> Result<()> {
+        instructions::complete_circle_update_trust(ctx)
+    }
 }
