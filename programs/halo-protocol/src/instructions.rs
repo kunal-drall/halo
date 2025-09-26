@@ -171,9 +171,10 @@ pub fn contribute(ctx: Context<Contribute>, amount: u64) -> Result<()> {
             .ok_or(HaloError::ArithmeticOverflow)?;
     } else {
         // Ensure we have enough space in the vector
-        while circle.monthly_contributions.len() <= current_month as usize {
+        let current_len = circle.monthly_contributions.len();
+        while current_len <= current_month as usize {
             circle.monthly_contributions.push(MonthlyContribution {
-                month: circle.monthly_contributions.len() as u8,
+                month: current_len as u8,
                 contributions: Vec::new(),
                 total_collected: 0,
                 distributed_to: None,
@@ -216,16 +217,18 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
 
     require!(current_month < circle.monthly_contributions.len() as u8, HaloError::NoContributionsToDistribute);
 
-    let monthly_contrib = &mut circle.monthly_contributions[current_month as usize];
-    require!(monthly_contrib.distributed_to.is_none(), HaloError::PotAlreadyDistributed);
-    require!(monthly_contrib.total_collected > 0, HaloError::NoContributionsToDistribute);
-
-    let pot_amount = monthly_contrib.total_collected;
+    let pot_amount = {
+        let monthly_contrib = &mut circle.monthly_contributions[current_month as usize];
+        require!(monthly_contrib.distributed_to.is_none(), HaloError::PotAlreadyDistributed);
+        require!(monthly_contrib.total_collected > 0, HaloError::NoContributionsToDistribute);
+        monthly_contrib.total_collected
+    };
 
     // Transfer pot to recipient
+    let circle_key = circle.key();
     let seeds = &[
         b"escrow",
-        circle.key().as_ref(),
+        circle_key.as_ref(),
         &[escrow.bump],
     ];
     let signer = &[&seeds[..]];
@@ -233,33 +236,24 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
     let cpi_accounts = Transfer {
         from: ctx.accounts.escrow_token_account.to_account_info(),
         to: ctx.accounts.recipient_token_account.to_account_info(),
-        authority: ctx.accounts.escrow.to_account_info(),
+        authority: escrow.to_account_info(),
     };
     let cpi_program = ctx.accounts.token_program.to_account_info();
     let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
     token::transfer(cpi_ctx, pot_amount)?;
 
     // Update records
+    let monthly_contrib = &mut circle.monthly_contributions[current_month as usize];
     monthly_contrib.distributed_to = Some(recipient_member.authority);
     recipient_member.has_received_pot = true;
     escrow.total_amount = escrow.total_amount.checked_sub(pot_amount).ok_or(HaloError::ArithmeticOverflow)?;
 
-    // Check if circle is completed and update trust scores for all members
+    // Check if circle is completed
     if current_month >= circle.duration_months - 1 {
         circle.status = CircleStatus::Completed;
         
-        // Update trust scores for all members who completed the circle
-        if let Some(trust_scores) = &mut ctx.accounts.member_trust_scores {
-            for (i, member_key) in circle.members.iter().enumerate() {
-                if let Some(trust_score_account) = trust_scores.get_mut(i) {
-                    if trust_score_account.authority == *member_key {
-                        trust_score_account.circles_completed += 1;
-                        trust_score_account.calculate_score();
-                        trust_score_account.last_updated = clock.unix_timestamp;
-                    }
-                }
-            }
-        }
+        // Note: Trust score updates for all members would need to be handled 
+        // in a separate instruction due to Anchor account constraints
     }
 
     msg!("Pot of {} distributed to {} for month {}", pot_amount, recipient_member.authority, current_month);
@@ -280,9 +274,10 @@ pub fn claim_penalty(ctx: Context<ClaimPenalty>) -> Result<()> {
 
     // Transfer penalty from escrow to claimer
     let escrow = &mut ctx.accounts.escrow;
+    let circle_key = circle.key();
     let seeds = &[
         b"escrow",
-        circle.key().as_ref(),
+        circle_key.as_ref(),
         &[escrow.bump],
     ];
     let signer = &[&seeds[..]];
@@ -290,7 +285,7 @@ pub fn claim_penalty(ctx: Context<ClaimPenalty>) -> Result<()> {
     let cpi_accounts = Transfer {
         from: ctx.accounts.escrow_token_account.to_account_info(),
         to: ctx.accounts.claimer_token_account.to_account_info(),
-        authority: ctx.accounts.escrow.to_account_info(),
+        authority: escrow.to_account_info(),
     };
     let cpi_program = ctx.accounts.token_program.to_account_info();
     let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
@@ -324,9 +319,10 @@ pub fn leave_circle(ctx: Context<LeaveCircle>) -> Result<()> {
     // Return stake if available
     if member.stake_amount > 0 {
         let escrow = &mut ctx.accounts.escrow;
+        let circle_key = circle.key();
         let seeds = &[
             b"escrow",
-            circle.key().as_ref(),
+            circle_key.as_ref(),
             &[escrow.bump],
         ];
         let signer = &[&seeds[..]];
@@ -334,7 +330,7 @@ pub fn leave_circle(ctx: Context<LeaveCircle>) -> Result<()> {
         let cpi_accounts = Transfer {
             from: ctx.accounts.escrow_token_account.to_account_info(),
             to: ctx.accounts.member_token_account.to_account_info(),
-            authority: ctx.accounts.escrow.to_account_info(),
+            authority: escrow.to_account_info(),
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
@@ -462,6 +458,22 @@ pub fn update_defi_activity_score(
     msg!("DeFi activity score updated to: {}", activity_score);
     Ok(())
 }
+
+pub fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> Result<()> {
+    let trust_score = &mut ctx.accounts.trust_score;
+    let circle = &ctx.accounts.circle;
+    let clock = Clock::get()?;
+    
+    require!(circle.status == CircleStatus::Completed, HaloError::CircleNotActive);
+    require!(circle.members.contains(&trust_score.authority), HaloError::MemberNotFound);
+    
+    // Update trust score for circle completion
+    trust_score.circles_completed += 1;
+    trust_score.calculate_score();
+    trust_score.last_updated = clock.unix_timestamp;
+    
+    msg!("Trust score updated for circle completion: {} points", trust_score.score);
+    Ok(())
 }
 
 #[derive(Accounts)]
@@ -584,9 +596,6 @@ pub struct DistributePot<'info> {
     pub escrow: Account<'info, CircleEscrow>,
     
     pub authority: Signer<'info>, // Could be circle creator or governance
-    
-    /// Optional: Trust score accounts for all members (for completion tracking)
-    pub member_trust_scores: Option<Vec<Account<'info, TrustScore>>>,
     
     #[account(mut)]
     pub recipient_token_account: Account<'info, TokenAccount>,
@@ -719,4 +728,18 @@ pub struct UpdateDefiActivityScore<'info> {
     pub trust_score: Account<'info, TrustScore>,
     
     pub oracle: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct CompleteCircleUpdateTrust<'info> {
+    #[account(
+        mut,
+        seeds = [b"trust_score", trust_score.authority.as_ref()],
+        bump = trust_score.bump
+    )]
+    pub trust_score: Account<'info, TrustScore>,
+    
+    pub circle: Account<'info, Circle>,
+    
+    pub authority: Signer<'info>, // Could be circle creator, member, or governance
 }

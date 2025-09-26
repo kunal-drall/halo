@@ -199,7 +199,7 @@ pub struct TrustScore {
     pub bump: u8,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, Debug)]
 pub enum TrustTier {
     Newcomer,   // 0-249 score
     Silver,     // 250-499 score
