@@ -78,6 +78,12 @@ pub struct Member {
     pub penalties: u64,
     /// Timestamp when joined
     pub joined_at: i64,
+    /// Current trust score (cached for quick access)
+    pub trust_score: u16,
+    /// Trust tier (cached for quick access)
+    pub trust_tier: TrustTier,
+    /// Number of contributions missed in this circle
+    pub contributions_missed: u8,
     /// Bump seed for PDA
     pub bump: u8,
 }
@@ -142,6 +148,9 @@ impl Member {
         1 + // has_received_pot
         8 + // penalties
         8 + // joined_at
+        2 + // trust_score
+        1 + // trust_tier
+        1 + // contributions_missed
         1 + // bump
         50 // extra space
     }
@@ -155,5 +164,141 @@ impl CircleEscrow {
         4 + 8 * Circle::MAX_DURATION as usize + // monthly_pots
         1 + // bump
         50 // extra space
+    }
+}
+
+#[account]
+pub struct TrustScore {
+    /// The user's public key
+    pub authority: Pubkey,
+    /// Overall trust score (0-1000)
+    pub score: u16,
+    /// Current trust tier
+    pub tier: TrustTier,
+    /// Payment history score component (0-400, representing 40%)
+    pub payment_history_score: u16,
+    /// Circle completion score component (0-300, representing 30%)
+    pub completion_score: u16,
+    /// DeFi activity score component (0-200, representing 20%)
+    pub defi_activity_score: u16,
+    /// Social proof score component (0-100, representing 10%)
+    pub social_proof_score: u16,
+    /// Number of circles completed successfully
+    pub circles_completed: u16,
+    /// Total number of circles joined
+    pub circles_joined: u16,
+    /// Total contributions made across all circles
+    pub total_contributions: u64,
+    /// Number of missed contributions
+    pub missed_contributions: u16,
+    /// Social proofs attached to this user
+    pub social_proofs: Vec<SocialProof>,
+    /// Last time trust score was updated
+    pub last_updated: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum TrustTier {
+    Newcomer,   // 0-249 score
+    Silver,     // 250-499 score
+    Gold,       // 500-749 score
+    Platinum,   // 750-1000 score
+}
+
+impl Default for TrustTier {
+    fn default() -> Self {
+        TrustTier::Newcomer
+    }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct SocialProof {
+    /// Type of social proof (Twitter, Discord, etc.)
+    pub proof_type: String,
+    /// Verification data or identifier
+    pub identifier: String,
+    /// Whether this proof is verified
+    pub verified: bool,
+    /// Timestamp when proof was added
+    pub timestamp: i64,
+}
+
+impl TrustScore {
+    pub const MAX_SOCIAL_PROOFS: usize = 5;
+    
+    pub fn space() -> usize {
+        8 + // discriminator
+        32 + // authority
+        2 + // score
+        1 + // tier
+        2 + // payment_history_score
+        2 + // completion_score
+        2 + // defi_activity_score
+        2 + // social_proof_score
+        2 + // circles_completed
+        2 + // circles_joined
+        8 + // total_contributions
+        2 + // missed_contributions
+        4 + (4 + 32 + 4 + 32 + 1 + 8) * Self::MAX_SOCIAL_PROOFS + // social_proofs vec
+        8 + // last_updated
+        1 + // bump
+        100 // extra space
+    }
+
+    /// Calculate minimum stake requirement based on trust tier
+    pub fn get_minimum_stake_multiplier(&self) -> u64 {
+        match self.tier {
+            TrustTier::Newcomer => 200, // 2x base stake
+            TrustTier::Silver => 150,   // 1.5x base stake
+            TrustTier::Gold => 100,     // 1x base stake
+            TrustTier::Platinum => 75,  // 0.75x base stake
+        }
+    }
+
+    /// Update trust tier based on current score
+    pub fn update_tier(&mut self) {
+        self.tier = match self.score {
+            0..=249 => TrustTier::Newcomer,
+            250..=499 => TrustTier::Silver,
+            500..=749 => TrustTier::Gold,
+            750..=1000 => TrustTier::Platinum,
+            _ => TrustTier::Newcomer, // Default fallback
+        };
+    }
+
+    /// Calculate and update trust score components
+    pub fn calculate_score(&mut self) {
+        // Payment history score (40% weight, max 400 points)
+        let payment_ratio = if self.circles_joined > 0 {
+            let total_expected = self.circles_joined * 12; // Assume 12 month average
+            let success_rate = if total_expected > self.missed_contributions {
+                ((total_expected - self.missed_contributions) * 100) / total_expected
+            } else { 0 };
+            std::cmp::min(success_rate, 100)
+        } else { 0 };
+        self.payment_history_score = ((payment_ratio as u16 * 400) / 100).min(400);
+
+        // Circle completion score (30% weight, max 300 points)
+        let completion_ratio = if self.circles_joined > 0 {
+            (self.circles_completed * 100) / self.circles_joined
+        } else { 0 };
+        self.completion_score = ((completion_ratio * 300) / 100).min(300);
+
+        // DeFi activity score (20% weight, max 200 points) - placeholder implementation
+        self.defi_activity_score = std::cmp::min(self.defi_activity_score, 200);
+
+        // Social proof score (10% weight, max 100 points)
+        let verified_proofs = self.social_proofs.iter().filter(|p| p.verified).count();
+        self.social_proof_score = std::cmp::min((verified_proofs * 20) as u16, 100);
+
+        // Calculate total score
+        self.score = self.payment_history_score + 
+                    self.completion_score + 
+                    self.defi_activity_score + 
+                    self.social_proof_score;
+        
+        self.update_tier();
     }
 }
