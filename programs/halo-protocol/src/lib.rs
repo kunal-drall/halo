@@ -79,4 +79,54 @@ pub mod halo_protocol {
     pub fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> Result<()> {
         instructions::complete_circle_update_trust(ctx)
     }
+
+    // Automation instructions
+    pub fn initialize_automation_state(
+        ctx: Context<InitializeAutomationState>,
+        min_interval: i64,
+    ) -> Result<()> {
+        instructions::initialize_automation_state(ctx, min_interval)
+    }
+
+    pub fn setup_circle_automation(
+        ctx: Context<SetupCircleAutomation>,
+        auto_collect: bool,
+        auto_distribute: bool,
+        auto_penalty: bool,
+    ) -> Result<()> {
+        instructions::setup_circle_automation(ctx, auto_collect, auto_distribute, auto_penalty)
+    }
+
+    pub fn automated_contribution_collection(
+        ctx: Context<AutomatedContributionCollection>,
+    ) -> Result<()> {
+        instructions::automated_contribution_collection(ctx)
+    }
+
+    pub fn automated_payout_distribution(
+        ctx: Context<AutomatedPayoutDistribution>,
+        recipient: Pubkey,
+    ) -> Result<()> {
+        instructions::automated_payout_distribution(ctx, recipient)
+    }
+
+    pub fn automated_penalty_enforcement(
+        ctx: Context<AutomatedPenaltyEnforcement>,
+    ) -> Result<()> {
+        instructions::automated_penalty_enforcement(ctx)
+    }
+
+    pub fn update_automation_settings(
+        ctx: Context<UpdateAutomationSettings>,
+        enabled: bool,
+        min_interval: Option<i64>,
+    ) -> Result<()> {
+        instructions::update_automation_settings(ctx, enabled, min_interval)
+    }
+
+    pub fn switchboard_automation_callback(
+        ctx: Context<SwitchboardAutomationCallback>,
+    ) -> Result<()> {
+        instructions::switchboard_automation_callback(ctx)
+    }
 }

@@ -50,4 +50,14 @@ pub enum HaloError {
     SocialProofAlreadyExists,
     #[msg("Invalid social proof")]
     InvalidSocialProof,
+    #[msg("Automation is disabled")]
+    AutomationDisabled,
+    #[msg("Automation not scheduled at this time")]
+    AutomationNotScheduled,
+    #[msg("Automation check too frequent")]
+    AutomationTooFrequent,
+    #[msg("Automation job not found")]
+    AutomationJobNotFound,
+    #[msg("Invalid automation configuration")]
+    InvalidAutomationConfig,
 }
