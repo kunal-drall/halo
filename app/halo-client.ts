@@ -479,6 +479,334 @@ export class HaloProtocolClient {
   }
 
   // =============================================================================
+  // Automation Methods  
+  // =============================================================================
+
+  /**
+   * Get automation state PDA
+   */
+  getAutomationStatePDA(): PublicKey {
+    const [automationStateAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("automation_state")],
+      this.program.programId
+    );
+    return automationStateAccount;
+  }
+
+  /**
+   * Get circle automation PDA
+   */
+  getCircleAutomationPDA(circleAccount: PublicKey): PublicKey {
+    const [circleAutomationAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("circle_automation"), circleAccount.toBuffer()],
+      this.program.programId
+    );
+    return circleAutomationAccount;
+  }
+
+  /**
+   * Get automation event PDA
+   */
+  getAutomationEventPDA(circleAccount: PublicKey, timestamp: number): PublicKey {
+    const [automationEventAccount] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("automation_event"),
+        circleAccount.toBuffer(),
+        Buffer.from(timestamp.toString())
+      ],
+      this.program.programId
+    );
+    return automationEventAccount;
+  }
+
+  /**
+   * Initialize global automation state
+   */
+  async initializeAutomationState(
+    authority: anchor.web3.Keypair,
+    switchboardQueue: PublicKey,
+    minInterval: number
+  ) {
+    const automationStateAccount = this.getAutomationStatePDA();
+
+    const tx = await this.program.methods
+      .initializeAutomationState(new anchor.BN(minInterval))
+      .accounts({
+        automationState: automationStateAccount,
+        switchboardQueue: switchboardQueue,
+        authority: authority.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc();
+
+    return { tx, automationStateAccount };
+  }
+
+  /**
+   * Setup automation for a circle
+   */
+  async setupCircleAutomation(
+    circleAccount: PublicKey,
+    authority: anchor.web3.Keypair,
+    switchboardJob: PublicKey,
+    autoCollect: boolean = true,
+    autoDistribute: boolean = true,
+    autoPenalty: boolean = true
+  ) {
+    const automationStateAccount = this.getAutomationStatePDA();
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+
+    const tx = await this.program.methods
+      .setupCircleAutomation(autoCollect, autoDistribute, autoPenalty)
+      .accounts({
+        circleAutomation: circleAutomationAccount,
+        automationState: automationStateAccount,
+        circle: circleAccount,
+        switchboardJob: switchboardJob,
+        authority: authority.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc();
+
+    return { tx, circleAutomationAccount };
+  }
+
+  /**
+   * Trigger automated contribution collection
+   */
+  async triggerAutomatedContributionCollection(
+    circleAccount: PublicKey,
+    payer: anchor.web3.Keypair
+  ) {
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+    const timestamp = Date.now();
+    const automationEventAccount = this.getAutomationEventPDA(circleAccount, timestamp);
+
+    const tx = await this.program.methods
+      .automatedContributionCollection()
+      .accounts({
+        circleAutomation: circleAutomationAccount,
+        automationEvent: automationEventAccount,
+        payer: payer.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([payer])
+      .rpc();
+
+    return { tx, automationEventAccount };
+  }
+
+  /**
+   * Trigger automated payout distribution
+   */
+  async triggerAutomatedPayoutDistribution(
+    circleAccount: PublicKey,
+    recipient: PublicKey,
+    distributePotAccounts: any, // DistributePot account struct
+    payer: anchor.web3.Keypair
+  ) {
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+    const timestamp = Date.now();
+    const automationEventAccount = this.getAutomationEventPDA(circleAccount, timestamp);
+
+    const tx = await this.program.methods
+      .automatedPayoutDistribution(recipient)
+      .accounts({
+        circleAutomation: circleAutomationAccount,
+        automationEvent: automationEventAccount,
+        distributePotAccounts: distributePotAccounts,
+        payer: payer.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([payer])
+      .rpc();
+
+    return { tx, automationEventAccount };
+  }
+
+  /**
+   * Trigger automated penalty enforcement
+   */
+  async triggerAutomatedPenaltyEnforcement(
+    circleAccount: PublicKey,
+    payer: anchor.web3.Keypair
+  ) {
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+    const timestamp = Date.now();
+    const automationEventAccount = this.getAutomationEventPDA(circleAccount, timestamp);
+
+    const tx = await this.program.methods
+      .automatedPenaltyEnforcement()
+      .accounts({
+        circleAutomation: circleAutomationAccount,
+        circle: circleAccount,
+        automationEvent: automationEventAccount,
+        payer: payer.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([payer])
+      .rpc();
+
+    return { tx, automationEventAccount };
+  }
+
+  /**
+   * Update automation settings
+   */
+  async updateAutomationSettings(
+    authority: anchor.web3.Keypair,
+    enabled: boolean,
+    minInterval?: number
+  ) {
+    const automationStateAccount = this.getAutomationStatePDA();
+
+    const tx = await this.program.methods
+      .updateAutomationSettings(enabled, minInterval ? new anchor.BN(minInterval) : null)
+      .accounts({
+        automationState: automationStateAccount,
+        authority: authority.publicKey,
+      })
+      .signers([authority])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Execute Switchboard automation callback
+   */
+  async executeSwitchboardCallback(
+    switchboardFeed: PublicKey,
+    payer: anchor.web3.Keypair
+  ) {
+    const automationStateAccount = this.getAutomationStatePDA();
+
+    const tx = await this.program.methods
+      .switchboardAutomationCallback()
+      .accounts({
+        automationState: automationStateAccount,
+        switchboardFeed: switchboardFeed,
+      })
+      .signers([payer])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Get automation state information
+   */
+  async getAutomationState() {
+    const automationStateAccount = this.getAutomationStatePDA();
+    return await this.program.account.automationState.fetch(automationStateAccount);
+  }
+
+  /**
+   * Get circle automation information
+   */
+  async getCircleAutomation(circleAccount: PublicKey) {
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+    return await this.program.account.circleAutomation.fetch(circleAutomationAccount);
+  }
+
+  /**
+   * Get automation event information
+   */
+  async getAutomationEvent(automationEventAccount: PublicKey) {
+    return await this.program.account.automationEvent.fetch(automationEventAccount);
+  }
+
+  /**
+   * Check if it's time for contribution collection
+   */
+  async isTimeForContributionCollection(circleAccount: PublicKey): Promise<boolean> {
+    try {
+      const automation = await this.getCircleAutomation(circleAccount);
+      const currentTime = Math.floor(Date.now() / 1000);
+      
+      return automation.autoCollectEnabled && 
+             automation.contributionSchedule.some((scheduledTime: any) => 
+               currentTime >= scheduledTime.toNumber() && 
+               automation.lastContributionCheck.toNumber() < scheduledTime.toNumber()
+             );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Check if it's time for payout distribution
+   */
+  async isTimeForPayoutDistribution(circleAccount: PublicKey): Promise<boolean> {
+    try {
+      const automation = await this.getCircleAutomation(circleAccount);
+      const currentTime = Math.floor(Date.now() / 1000);
+      
+      return automation.autoDistributeEnabled && 
+             automation.distributionSchedule.some((scheduledTime: any) => 
+               currentTime >= scheduledTime.toNumber() && 
+               automation.lastDistributionCheck.toNumber() < scheduledTime.toNumber()
+             );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Check if it's time for penalty enforcement
+   */
+  async isTimeForPenaltyEnforcement(circleAccount: PublicKey): Promise<boolean> {
+    try {
+      const automation = await this.getCircleAutomation(circleAccount);
+      const currentTime = Math.floor(Date.now() / 1000);
+      
+      return automation.autoPenaltyEnabled && 
+             automation.penaltySchedule.some((scheduledTime: any) => 
+               currentTime >= scheduledTime.toNumber() && 
+               automation.lastPenaltyCheck.toNumber() < scheduledTime.toNumber()
+             );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get next scheduled automation events for a circle
+   */
+  async getNextAutomationEvents(circleAccount: PublicKey) {
+    try {
+      const automation = await this.getCircleAutomation(circleAccount);
+      const currentTime = Math.floor(Date.now() / 1000);
+
+      const nextContribution = automation.contributionSchedule
+        .map((time: any) => time.toNumber())
+        .find((time: number) => time > currentTime);
+
+      const nextDistribution = automation.distributionSchedule
+        .map((time: any) => time.toNumber())
+        .find((time: number) => time > currentTime);
+
+      const nextPenalty = automation.penaltySchedule
+        .map((time: any) => time.toNumber())
+        .find((time: number) => time > currentTime);
+
+      return {
+        nextContribution: nextContribution || null,
+        nextDistribution: nextDistribution || null,
+        nextPenalty: nextPenalty || null,
+      };
+    } catch (error) {
+      return {
+        nextContribution: null,
+        nextDistribution: null,
+        nextPenalty: null,
+      };
+    }
+  }
+
+  // =============================================================================
   // Solend Integration Methods
   // =============================================================================
 
