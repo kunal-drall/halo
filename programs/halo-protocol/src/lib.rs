@@ -79,4 +79,50 @@ pub mod halo_protocol {
     pub fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> Result<()> {
         instructions::complete_circle_update_trust(ctx)
     }
+
+    // Governance Instructions
+    pub fn create_proposal(
+        ctx: Context<CreateProposal>,
+        title: String,
+        description: String,
+        proposal_type: u8,
+        voting_duration_hours: u16,
+        execution_threshold: u64,
+        new_interest_rate: Option<u16>,
+    ) -> Result<()> {
+        instructions::create_proposal(ctx, title, description, proposal_type, voting_duration_hours, execution_threshold, new_interest_rate)
+    }
+
+    pub fn cast_vote(
+        ctx: Context<CastVote>,
+        support: bool,
+        voting_power: u64,
+    ) -> Result<()> {
+        instructions::cast_vote(ctx, support, voting_power)
+    }
+
+    pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
+        instructions::execute_proposal(ctx)
+    }
+
+    // Auction Instructions
+    pub fn create_auction(
+        ctx: Context<CreateAuction>,
+        pot_amount: u64,
+        starting_bid: u64,
+        duration_hours: u16,
+    ) -> Result<()> {
+        instructions::create_auction(ctx, pot_amount, starting_bid, duration_hours)
+    }
+
+    pub fn place_bid(
+        ctx: Context<PlaceBid>,
+        bid_amount: u64,
+    ) -> Result<()> {
+        instructions::place_bid(ctx, bid_amount)
+    }
+
+    pub fn settle_auction(ctx: Context<SettleAuction>) -> Result<()> {
+        instructions::settle_auction(ctx)
+    }
 }

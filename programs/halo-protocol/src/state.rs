@@ -302,3 +302,253 @@ impl TrustScore {
         self.update_tier();
     }
 }
+
+// Governance and Auction System
+
+#[account]
+pub struct GovernanceProposal {
+    /// Proposal ID
+    pub id: u64,
+    /// The circle this proposal affects
+    pub circle: Pubkey,
+    /// Proposal creator
+    pub proposer: Pubkey,
+    /// Proposal title
+    pub title: String,
+    /// Proposal description
+    pub description: String,
+    /// Proposal type
+    pub proposal_type: ProposalType,
+    /// Current proposal status
+    pub status: ProposalStatus,
+    /// Voting start time
+    pub voting_start: i64,
+    /// Voting end time
+    pub voting_end: i64,
+    /// Minimum voting power required for execution
+    pub execution_threshold: u64,
+    /// Total voting power for this proposal
+    pub total_voting_power: u64,
+    /// Total votes in favor (raw vote count)
+    pub votes_for: u64,
+    /// Total votes against (raw vote count)
+    pub votes_against: u64,
+    /// Quadratic weighted votes for
+    pub quadratic_votes_for: u64,
+    /// Quadratic weighted votes against
+    pub quadratic_votes_against: u64,
+    /// Has this proposal been executed
+    pub executed: bool,
+    /// Execution timestamp
+    pub executed_at: Option<i64>,
+    /// New interest rate (for interest rate proposals)
+    pub new_interest_rate: Option<u16>,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum ProposalType {
+    InterestRateChange,
+    CircleParameter,
+    Emergency,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum ProposalStatus {
+    Active,
+    Succeeded,
+    Defeated,
+    Executed,
+    Cancelled,
+}
+
+impl Default for ProposalStatus {
+    fn default() -> Self {
+        ProposalStatus::Active
+    }
+}
+
+#[account]
+pub struct Vote {
+    /// The proposal this vote is for
+    pub proposal: Pubkey,
+    /// The voter
+    pub voter: Pubkey,
+    /// Voting power used
+    pub voting_power: u64,
+    /// Quadratic voting weight (square root of voting power)
+    pub quadratic_weight: u64,
+    /// Vote direction (true = for, false = against)
+    pub support: bool,
+    /// When the vote was cast
+    pub timestamp: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+#[account]
+pub struct Auction {
+    /// Auction ID
+    pub id: u64,
+    /// The circle this auction is for
+    pub circle: Pubkey,
+    /// The member who initiated the auction
+    pub initiator: Pubkey,
+    /// Current month's pot amount being auctioned
+    pub pot_amount: u64,
+    /// Starting bid amount
+    pub starting_bid: u64,
+    /// Current highest bid
+    pub highest_bid: u64,
+    /// Current highest bidder
+    pub highest_bidder: Option<Pubkey>,
+    /// Auction start time
+    pub start_time: i64,
+    /// Auction end time
+    pub end_time: i64,
+    /// Auction status
+    pub status: AuctionStatus,
+    /// Whether the auction has been settled
+    pub settled: bool,
+    /// Total number of bids placed
+    pub bid_count: u32,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum AuctionStatus {
+    Active,
+    Ended,
+    Cancelled,
+}
+
+impl Default for AuctionStatus {
+    fn default() -> Self {
+        AuctionStatus::Active
+    }
+}
+
+#[account]
+pub struct Bid {
+    /// The auction this bid is for
+    pub auction: Pubkey,
+    /// The bidder
+    pub bidder: Pubkey,
+    /// Bid amount
+    pub amount: u64,
+    /// Bidder's stake at time of bid
+    pub bidder_stake: u64,
+    /// When the bid was placed
+    pub timestamp: i64,
+    /// Whether this bid is currently the highest
+    pub is_highest: bool,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl GovernanceProposal {
+    pub const MAX_TITLE_LENGTH: usize = 200;
+    pub const MAX_DESCRIPTION_LENGTH: usize = 1000;
+    
+    pub fn space() -> usize {
+        8 + // discriminator
+        8 + // id
+        32 + // circle
+        32 + // proposer
+        4 + Self::MAX_TITLE_LENGTH + // title
+        4 + Self::MAX_DESCRIPTION_LENGTH + // description
+        1 + // proposal_type
+        1 + // status
+        8 + // voting_start
+        8 + // voting_end
+        8 + // execution_threshold
+        8 + // total_voting_power
+        8 + // votes_for
+        8 + // votes_against
+        8 + // quadratic_votes_for
+        8 + // quadratic_votes_against
+        1 + // executed
+        1 + 8 + // executed_at (Option<i64>)
+        1 + 2 + // new_interest_rate (Option<u16>)
+        1 + // bump
+        100 // extra space
+    }
+
+    /// Check if proposal is currently active for voting
+    pub fn is_active(&self) -> bool {
+        self.status == ProposalStatus::Active
+    }
+
+    /// Check if voting period has ended
+    pub fn voting_ended(&self, current_time: i64) -> bool {
+        current_time >= self.voting_end
+    }
+
+    /// Calculate if proposal has enough votes to pass
+    pub fn has_passed(&self) -> bool {
+        self.quadratic_votes_for > self.quadratic_votes_against &&
+        self.total_voting_power >= self.execution_threshold
+    }
+}
+
+impl Vote {
+    pub fn space() -> usize {
+        8 + // discriminator
+        32 + // proposal
+        32 + // voter
+        8 + // voting_power
+        8 + // quadratic_weight
+        1 + // support
+        8 + // timestamp
+        1 + // bump
+        50 // extra space
+    }
+}
+
+impl Auction {
+    pub fn space() -> usize {
+        8 + // discriminator
+        8 + // id
+        32 + // circle
+        32 + // initiator
+        8 + // pot_amount
+        8 + // starting_bid
+        8 + // highest_bid
+        1 + 32 + // highest_bidder (Option<Pubkey>)
+        8 + // start_time
+        8 + // end_time
+        1 + // status
+        1 + // settled
+        4 + // bid_count
+        1 + // bump
+        50 // extra space
+    }
+
+    /// Check if auction is currently active
+    pub fn is_active(&self, current_time: i64) -> bool {
+        self.status == AuctionStatus::Active && 
+        current_time >= self.start_time && 
+        current_time < self.end_time
+    }
+
+    /// Check if auction has ended
+    pub fn has_ended(&self, current_time: i64) -> bool {
+        current_time >= self.end_time || self.status == AuctionStatus::Ended
+    }
+}
+
+impl Bid {
+    pub fn space() -> usize {
+        8 + // discriminator
+        32 + // auction
+        32 + // bidder
+        8 + // amount
+        8 + // bidder_stake
+        8 + // timestamp
+        1 + // is_highest
+        1 + // bump
+        50 // extra space
+    }
+}
