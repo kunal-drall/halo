@@ -1,6 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { HaloProtocol } from "../target/types/halo_protocol";
 import {
   TOKEN_PROGRAM_ID,
   createMint,
@@ -8,18 +7,48 @@ import {
   mintTo,
 } from "@solana/spl-token";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { SolendService, createSolendService } from "./solend-service";
+
+// Mock type for the Halo Protocol since we don't have the actual types
+interface HaloProtocol {
+  // Add minimal type definitions as needed
+}
 
 /**
- * Utility functions for interacting with the Halo Protocol
+ * Utility functions for interacting with the Halo Protocol with Solend integration
  */
 
 export class HaloProtocolClient {
   private program: Program<HaloProtocol>;
   private provider: anchor.AnchorProvider;
+  private solendService: SolendService | null = null;
 
   constructor(program: Program<HaloProtocol>) {
     this.program = program;
     this.provider = program.provider as anchor.AnchorProvider;
+  }
+
+  /**
+   * Initialize Solend service for yield generation and borrowing
+   */
+  async initializeSolend(): Promise<void> {
+    try {
+      this.solendService = await createSolendService(this.provider.connection);
+      console.log("✅ Solend service initialized");
+    } catch (error) {
+      console.error("Failed to initialize Solend service:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Solend service instance
+   */
+  getSolendService(): SolendService {
+    if (!this.solendService) {
+      throw new Error("Solend service not initialized. Call initializeSolend() first.");
+    }
+    return this.solendService;
   }
 
   /**
@@ -447,6 +476,214 @@ export class HaloProtocolClient {
     if (tier.gold) return "Gold";
     if (tier.platinum) return "Platinum";
     return "Newcomer";
+  }
+
+  // =============================================================================
+  // Solend Integration Methods
+  // =============================================================================
+
+  /**
+   * Deposit circle funds into Solend for yield generation
+   * @param circleAccount - The circle account
+   * @param tokenMint - Token mint address
+   * @param amount - Amount to deposit
+   * @param sourceTokenAccount - Source token account (escrow account)
+   * @param authority - Circle authority that can sign for escrow
+   * @returns Transaction signature
+   */
+  async depositCircleFundsToSolend(
+    circleAccount: PublicKey,
+    tokenMint: PublicKey,
+    amount: number,
+    sourceTokenAccount: PublicKey,
+    authority: Keypair
+  ): Promise<string> {
+    if (!this.solendService) {
+      throw new Error("Solend service not initialized. Call initializeSolend() first.");
+    }
+
+    try {
+      const signature = await this.solendService.depositCircleFunds(
+        authority,
+        tokenMint,
+        amount,
+        sourceTokenAccount
+      );
+
+      console.log(`✅ Deposited ${amount} tokens to Solend for circle ${circleAccount.toString()}`);
+      return signature;
+    } catch (error) {
+      console.error("Failed to deposit circle funds to Solend:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Borrow against circle collateral from Solend
+   * @param circleAccount - The circle account
+   * @param collateralMint - Collateral token mint
+   * @param borrowMint - Token to borrow mint
+   * @param borrowAmount - Amount to borrow
+   * @param destinationTokenAccount - Destination for borrowed tokens
+   * @param authority - Circle authority
+   * @returns Transaction signature
+   */
+  async borrowFromSolend(
+    circleAccount: PublicKey,
+    collateralMint: PublicKey,
+    borrowMint: PublicKey,
+    borrowAmount: number,
+    destinationTokenAccount: PublicKey,
+    authority: Keypair
+  ): Promise<string> {
+    if (!this.solendService) {
+      throw new Error("Solend service not initialized. Call initializeSolend() first.");
+    }
+
+    try {
+      const signature = await this.solendService.borrowAgainstCollateral(
+        authority,
+        collateralMint,
+        borrowMint,
+        borrowAmount,
+        destinationTokenAccount
+      );
+
+      console.log(`✅ Borrowed ${borrowAmount} tokens from Solend for circle ${circleAccount.toString()}`);
+      return signature;
+    } catch (error) {
+      console.error("Failed to borrow from Solend:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Repay loan to Solend
+   * @param circleAccount - The circle account
+   * @param tokenMint - Token mint to repay
+   * @param repayAmount - Amount to repay
+   * @param sourceTokenAccount - Source token account for repayment
+   * @param authority - Circle authority
+   * @returns Transaction signature
+   */
+  async repayToSolend(
+    circleAccount: PublicKey,
+    tokenMint: PublicKey,
+    repayAmount: number,
+    sourceTokenAccount: PublicKey,
+    authority: Keypair
+  ): Promise<string> {
+    if (!this.solendService) {
+      throw new Error("Solend service not initialized. Call initializeSolend() first.");
+    }
+
+    try {
+      const signature = await this.solendService.repayLoan(
+        authority,
+        tokenMint,
+        repayAmount,
+        sourceTokenAccount
+      );
+
+      console.log(`✅ Repaid ${repayAmount} tokens to Solend for circle ${circleAccount.toString()}`);
+      return signature;
+    } catch (error) {
+      console.error("Failed to repay to Solend:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Withdraw funds from Solend
+   * @param circleAccount - The circle account
+   * @param tokenMint - Token mint to withdraw
+   * @param withdrawAmount - Amount to withdraw
+   * @param destinationTokenAccount - Destination token account
+   * @param authority - Circle authority
+   * @returns Transaction signature
+   */
+  async withdrawFromSolend(
+    circleAccount: PublicKey,
+    tokenMint: PublicKey,
+    withdrawAmount: number,
+    destinationTokenAccount: PublicKey,
+    authority: Keypair
+  ): Promise<string> {
+    if (!this.solendService) {
+      throw new Error("Solend service not initialized. Call initializeSolend() first.");
+    }
+
+    try {
+      const signature = await this.solendService.withdrawFunds(
+        authority,
+        tokenMint,
+        withdrawAmount,
+        destinationTokenAccount
+      );
+
+      console.log(`✅ Withdrew ${withdrawAmount} tokens from Solend for circle ${circleAccount.toString()}`);
+      return signature;
+    } catch (error) {
+      console.error("Failed to withdraw from Solend:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current Solend market yields and information
+   * @returns Market yields data
+   */
+  async getSolendMarketYields() {
+    if (!this.solendService) {
+      throw new Error("Solend service not initialized. Call initializeSolend() first.");
+    }
+
+    try {
+      const yields = await this.solendService.fetchMarketYields();
+      console.log(`✅ Fetched yields for ${yields.reserves.length} reserves`);
+      return yields;
+    } catch (error) {
+      console.error("Failed to fetch Solend market yields:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user position in Solend for a specific token
+   * @param userPublicKey - User's public key
+   * @param tokenMint - Token mint address
+   * @returns User position information
+   */
+  async getSolendUserPosition(userPublicKey: PublicKey, tokenMint: PublicKey) {
+    if (!this.solendService) {
+      throw new Error("Solend service not initialized. Call initializeSolend() first.");
+    }
+
+    try {
+      const position = await this.solendService.getUserPosition(userPublicKey, tokenMint);
+      return position;
+    } catch (error) {
+      console.error("Failed to get Solend user position:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get available Solend reserves
+   * @returns List of available reserves
+   */
+  async getSolendAvailableReserves() {
+    if (!this.solendService) {
+      throw new Error("Solend service not initialized. Call initializeSolend() first.");
+    }
+
+    try {
+      const reserves = await this.solendService.getAvailableReserves();
+      return reserves;
+    } catch (error) {
+      console.error("Failed to get Solend available reserves:", error);
+      throw error;
+    }
   }
 }
 
