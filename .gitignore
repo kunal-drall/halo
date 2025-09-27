@@ -7,6 +7,8 @@ node_modules/
 target/
 dist/
 build/
+.next/
+out/
 
 # IDE
 .vscode/
@@ -57,3 +59,8 @@ temp/
 # Rust
 Cargo.lock
 **/*.rs.bk
+
+# Frontend specific
+frontend/.next/
+frontend/out/
+frontend/node_modules/
