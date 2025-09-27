@@ -25,10 +25,29 @@ import {
   Mail,
   Chrome,
   Apple,
-  MessageSquare
+  MessageSquare,
+  CheckCircle,
+  DollarSign,
+  Calendar,
+  BarChart3,
+  Lock,
+  Smartphone,
+  Github,
+  Twitter,
+  FileText,
+  ExternalLink,
+  ArrowUp,
+  Clock,
+  Wallet,
+  PiggyBank,
+  Repeat,
+  Award,
+  Building,
+  Layers
 } from 'lucide-react'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
+import Lottie from 'lottie-react'
 
 // Temporary placeholder for Privy auth - will be replaced when Privy is properly configured
 const useAuth = () => ({
@@ -140,46 +159,60 @@ const AuthButton = () => {
   )
 }
 
+// Simple animated circle as placeholder for Lottie animation
+const AnimatedCircleTokens = () => (
+  <div className="relative w-64 h-64 mx-auto">
+    <motion.div
+      animate={{
+        rotate: 360
+      }}
+      transition={{
+        duration: 20,
+        repeat: Infinity,
+        ease: "linear"
+      }}
+      className="relative w-full h-full"
+    >
+      {/* Main circle */}
+      <div className="absolute inset-0 rounded-full border-4 border-gradient-primary bg-gradient-to-br from-primary/20 to-secondary/20 backdrop-blur-sm" />
+      
+      {/* Rotating tokens */}
+      {[0, 60, 120, 180, 240, 300].map((angle, index) => (
+        <motion.div
+          key={index}
+          className="absolute w-8 h-8 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center shadow-lg"
+          style={{
+            left: `${50 + 40 * Math.cos((angle * Math.PI) / 180)}%`,
+            top: `${50 + 40 * Math.sin((angle * Math.PI) / 180)}%`,
+            transform: 'translate(-50%, -50%)'
+          }}
+          animate={{
+            scale: [1, 1.2, 1],
+            rotate: -360
+          }}
+          transition={{
+            duration: 3,
+            repeat: Infinity,
+            delay: index * 0.5,
+            ease: "easeInOut"
+          }}
+        >
+          <DollarSign className="w-4 h-4 text-white" />
+        </motion.div>
+      ))}
+      
+      {/* Center logo */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center shadow-2xl">
+          <CircleDollarSign className="w-8 h-8 text-white" />
+        </div>
+      </div>
+    </motion.div>
+  </div>
+)
+
 export default function HomePage() {
   const { authenticated } = useAuth()
-
-  const features = [
-    {
-      icon: Users,
-      title: 'Community Circles',
-      description: 'Join rotating savings circles with trusted members and shared goals',
-      color: 'text-primary',
-      gradient: 'from-primary/10 to-primary/5'
-    },
-    {
-      icon: TrendingUp,
-      title: 'DeFi Yields',
-      description: 'Earn passive income on pooled funds through integrated lending protocols',
-      color: 'text-secondary',
-      gradient: 'from-secondary/10 to-secondary/5'
-    },
-    {
-      icon: Shield,
-      title: 'Trust Scoring',
-      description: 'Build your reputation and unlock better rates with social proofs',
-      color: 'text-accent',
-      gradient: 'from-accent/10 to-accent/5'
-    },
-    {
-      icon: Vote,
-      title: 'Governance Power',
-      description: 'Shape the protocol through community voting and proposals',
-      color: 'text-purple-600',
-      gradient: 'from-purple-100 to-purple-50'
-    }
-  ]
-
-  const stats = [
-    { label: 'Active Circles', value: '1,247', icon: CircleDollarSign, change: '+18%' },
-    { label: 'Total Value Locked', value: '$12.4M', icon: Coins, change: '+34%' },
-    { label: 'Average APY', value: '8.2%', icon: TrendingUp, change: '+2.1%' },
-    { label: 'Happy Members', value: '8,534', icon: Users, change: '+27%' }
-  ]
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -200,10 +233,19 @@ export default function HomePage() {
     }
   }
 
+  const scrollVariants = {
+    hidden: { opacity: 0, y: 60 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.8, ease: "easeOut" }
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-primary/5">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-primary">
       {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-white/10 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <motion.div 
             className="flex items-center gap-3"
@@ -213,243 +255,738 @@ export default function HomePage() {
             <div className="h-8 w-8 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center">
               <CircleDollarSign className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-display font-bold text-gradient-primary">
+            <span className="text-xl font-display font-bold text-white">
               Halo Protocol
             </span>
-            <Badge variant="outline" className="text-xs border-primary/20">
+            <Badge variant="outline" className="text-xs border-secondary/30 text-secondary bg-secondary/10">
               {process.env.NEXT_PUBLIC_SOLANA_NETWORK === 'mainnet-beta' ? 'Mainnet' : 'Devnet'}
             </Badge>
           </motion.div>
           
           <div className="flex items-center gap-4">
             <NetworkSwitch />
-            {authenticated && (
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button variant="outline" asChild>
-                  <Link href="/dashboard">
-                    Dashboard <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </motion.div>
-            )}
             <AuthButton />
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-12">
-        {/* Hero Section */}
-        <motion.div 
-          className="text-center max-w-6xl mx-auto mb-16"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          <motion.div variants={itemVariants} className="mb-6">
-            <Badge className="mb-4 bg-gradient-to-r from-primary/10 to-secondary/10 text-primary border-primary/20">
-              <Sparkles className="h-3 w-3 mr-1" />
-              Finance Powered by Community & Solana
-            </Badge>
-          </motion.div>
+      <main className="relative">
+        {/* 1. Hero Section */}
+        <section className="relative py-20 md:py-32 overflow-hidden">
+          {/* Background Effects */}
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 to-primary/20" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(120,119,198,0.3),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,rgba(244,114,182,0.2),transparent_50%)]" />
           
-          <motion.h1 
-            variants={itemVariants}
-            className="text-4xl md:text-7xl font-display font-bold mb-6 text-gradient-primary leading-tight"
-          >
-            Save Together,
-            <br />
-            <span className="text-gradient-accent">Grow Together</span>
-          </motion.h1>
-          
-          <motion.p 
-            variants={itemVariants}
-            className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed"
-          >
-            Join trusted savings circles, earn yield on your contributions, and build your financial reputation in the most innovative DeFi ecosystem.
-          </motion.p>
-          
-          {!authenticated ? (
+          <div className="container mx-auto px-4 relative z-10">
             <motion.div 
-              variants={itemVariants}
-              className="flex justify-center mb-8"
+              className="text-center max-w-6xl mx-auto"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
             >
-              <AuthConnection />
-            </motion.div>
-          ) : (
-            <motion.div 
-              variants={itemVariants}
-              className="flex flex-col sm:flex-row gap-4 justify-center"
-            >
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button size="lg" className="bg-gradient-to-r from-primary to-secondary text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl" asChild>
-                  <Link href="/circles/create">
-                    <Plus className="h-5 w-5 mr-2" />
-                    Create Circle
-                  </Link>
-                </Button>
+              {/* Animated Token Circle */}
+              <motion.div variants={itemVariants} className="mb-8">
+                <AnimatedCircleTokens />
               </motion.div>
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button size="lg" variant="outline" className="px-8 py-4 text-lg font-semibold rounded-xl border-2 border-primary/20 hover:border-primary/40" asChild>
-                  <Link href="/circles">
-                    <Users className="h-5 w-5 mr-2" />
-                    Browse Circles
-                  </Link>
-                </Button>
-              </motion.div>
-            </motion.div>
-          )}
-        </motion.div>
 
-        {/* Stats Section */}
-        <motion.div 
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {stats.map((stat, index) => {
-            const Icon = stat.icon
-            return (
-              <motion.div key={index} variants={itemVariants}>
-                <Card className="text-center hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-white to-gray-50/50 hover:scale-105">
-                  <CardContent className="p-6">
-                    <div className="flex justify-center mb-3">
-                      <div className="p-3 rounded-full bg-gradient-to-r from-primary/10 to-secondary/10">
-                        <Icon className="h-6 w-6 text-primary" />
-                      </div>
+              <motion.div variants={itemVariants} className="mb-6">
+                <Badge className="mb-6 bg-gradient-to-r from-primary/20 to-secondary/20 text-white border-secondary/30 text-lg px-4 py-2">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Finance Powered by Community & Solana
+                </Badge>
+              </motion.div>
+              
+              <motion.h1 
+                variants={itemVariants}
+                className="text-5xl md:text-8xl font-display font-bold mb-8 text-white leading-tight"
+              >
+                Halo digitizes traditional savings circles
+                <br />
+                <span className="bg-gradient-to-r from-secondary via-accent to-primary bg-clip-text text-transparent">
+                  with trust scoring, instant payouts, and DeFi yields
+                </span>
+              </motion.h1>
+              
+              <motion.p 
+                variants={itemVariants}
+                className="text-xl md:text-2xl text-slate-300 mb-12 max-w-4xl mx-auto leading-relaxed"
+              >
+                Save • Borrow • Grow Together
+              </motion.p>
+              
+              {/* CTAs */}
+              <motion.div 
+                variants={itemVariants}
+                className="flex flex-col sm:flex-row gap-6 justify-center"
+              >
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button size="lg" className="bg-gradient-to-r from-primary to-secondary text-white px-12 py-6 text-xl font-bold rounded-2xl shadow-2xl hover:shadow-3xl transition-all" asChild>
+                    <Link href={authenticated ? "/dashboard" : "#"} onClick={!authenticated ? () => useAuth().login() : undefined}>
+                      <Zap className="h-6 w-6 mr-3" />
+                      Launch App
+                    </Link>
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button size="lg" variant="outline" className="px-12 py-6 text-xl font-bold rounded-2xl border-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50" onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>
+                    Learn More
+                    <ArrowRight className="h-6 w-6 ml-3" />
+                  </Button>
+                </motion.div>
+              </motion.div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* 2. Problem & Solution Section */}
+        <section className="py-20 bg-slate-800/50 backdrop-blur-sm">
+          <div className="container mx-auto px-4">
+            <motion.div 
+              className="grid md:grid-cols-2 gap-12 max-w-6xl mx-auto"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              variants={containerVariants}
+            >
+              {/* Problem Card */}
+              <motion.div variants={scrollVariants}>
+                <Card className="border-red-500/20 bg-red-500/5 backdrop-blur-sm h-full">
+                  <CardHeader className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                      <PiggyBank className="w-8 h-8 text-red-400" />
                     </div>
-                    <div className="text-2xl md:text-3xl font-bold mb-1 text-gradient-primary">{stat.value}</div>
-                    <div className="text-sm text-muted-foreground mb-1">{stat.label}</div>
-                    <Badge variant="outline" className="text-xs text-green-600 border-green-200 bg-green-50">
-                      <TrendingUp className="h-3 w-3 mr-1" />
-                      {stat.change}
-                    </Badge>
+                    <CardTitle className="text-2xl text-white">Traditional ROSCAs</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-3 text-red-300">
+                      <div className="w-2 h-2 rounded-full bg-red-400" />
+                      <span>Manual tracking and management</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-red-300">
+                      <div className="w-2 h-2 rounded-full bg-red-400" />
+                      <span>Risk of defaults and fraud</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-red-300">
+                      <div className="w-2 h-2 rounded-full bg-red-400" />
+                      <span>Limited to local communities</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-red-300">
+                      <div className="w-2 h-2 rounded-full bg-red-400" />
+                      <span>No yield on pooled funds</span>
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
-            )
-          })}
-        </motion.div>
 
-        {/* Features Section */}
-        <motion.div 
-          className="mb-16"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          <motion.div variants={itemVariants} className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4 text-gradient-primary">
-              Why Choose Halo Protocol?
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Experience the future of community-driven finance with built-in yield generation and trust-based lending.
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => {
-              const Icon = feature.icon
-              return (
-                <motion.div key={index} variants={itemVariants}>
-                  <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 h-full bg-gradient-to-br from-white to-gray-50/50 hover:scale-105 hover:-translate-y-1">
-                    <CardHeader className="text-center pb-4">
-                      <div className={`mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-r ${feature.gradient}`}>
-                        <Icon className={`h-8 w-8 ${feature.color}`} />
-                      </div>
-                      <CardTitle className="text-lg font-semibold">{feature.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0 text-center">
-                      <CardDescription className="text-sm leading-relaxed">{feature.description}</CardDescription>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )
-            })}
+              {/* Solution Card */}
+              <motion.div variants={scrollVariants}>
+                <Card className="border-green-500/20 bg-green-500/5 backdrop-blur-sm h-full">
+                  <CardHeader className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                      <Layers className="w-8 h-8 text-green-400" />
+                    </div>
+                    <CardTitle className="text-2xl text-white">Halo Protocol</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-3 text-green-300">
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                      <span>Global, automated, trustless</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-green-300">
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                      <span>On-chain trust scoring system</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-green-300">
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                      <span>Accessible to anyone globally</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-green-300">
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                      <span>Yield-bearing through DeFi integration</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </motion.div>
           </div>
-        </motion.div>
+        </section>
 
-        {/* Social Proof Section */}
-        <motion.div 
-          className="mb-16 text-center"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          <motion.div variants={itemVariants} className="flex justify-center items-center gap-8 flex-wrap">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Heart className="h-5 w-5 text-red-500" />
-              <span className="text-sm font-medium">Trusted by 8,500+ users</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Shield className="h-5 w-5 text-green-500" />
-              <span className="text-sm font-medium">$12M+ secured</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Zap className="h-5 w-5 text-yellow-500" />
-              <span className="text-sm font-medium">Zero defaults</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Globe className="h-5 w-5 text-blue-500" />
-              <span className="text-sm font-medium">Global community</span>
-            </div>
-          </motion.div>
-        </motion.div>
+        {/* 3. How It Works Section */}
+        <section id="how-it-works" className="py-20 bg-gradient-to-r from-slate-900 to-slate-800">
+          <div className="container mx-auto px-4">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              variants={containerVariants}
+              className="max-w-6xl mx-auto"
+            >
+              <motion.div variants={itemVariants} className="text-center mb-16">
+                <h2 className="text-4xl md:text-5xl font-display font-bold mb-6 text-white">
+                  How It Works
+                </h2>
+                <p className="text-xl text-slate-300 max-w-3xl mx-auto">
+                  Three simple steps to start saving and earning with your community
+                </p>
+              </motion.div>
 
-        {/* CTA Section */}
-        {authenticated && (
-          <motion.div 
-            variants={itemVariants}
-            initial="hidden"
-            animate="visible"
-            className="gradient-bg rounded-3xl p-8 md:p-12 text-white text-center relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent" />
-            <div className="relative z-10">
+              <div className="grid md:grid-cols-3 gap-8">
+                {[
+                  {
+                    step: "01",
+                    title: "Create a Circle",
+                    description: "Set contribution amount, duration, and invite trusted members to join your savings circle.",
+                    icon: Users,
+                    color: "from-primary to-primary/80"
+                  },
+                  {
+                    step: "02", 
+                    title: "Contribute & Earn",
+                    description: "Make monthly deposits while your pooled funds automatically earn yield through DeFi protocols.",
+                    icon: Coins,
+                    color: "from-secondary to-secondary/80"
+                  },
+                  {
+                    step: "03",
+                    title: "Receive & Repay",
+                    description: "Members receive payouts in rotation while trust scores update based on contribution history.",
+                    icon: Award,
+                    color: "from-accent to-accent/80"
+                  }
+                ].map((step, index) => (
+                  <motion.div
+                    key={index}
+                    variants={scrollVariants}
+                    whileHover={{ y: -10, scale: 1.02 }}
+                    className="relative"
+                  >
+                    <Card className="border-white/10 bg-white/5 backdrop-blur-sm h-full hover:bg-white/10 transition-all duration-300">
+                      <CardHeader className="text-center relative">
+                        {/* Step Number */}
+                        <div className="absolute -top-4 left-4">
+                          <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${step.color} flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
+                            {step.step}
+                          </div>
+                        </div>
+                        
+                        {/* Icon */}
+                        <div className={`w-20 h-20 mx-auto mb-6 mt-4 rounded-2xl bg-gradient-to-r ${step.color} flex items-center justify-center shadow-xl`}>
+                          <step.icon className="w-10 h-10 text-white" />
+                        </div>
+                        
+                        <CardTitle className="text-2xl text-white mb-4">{step.title}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-center">
+                        <CardDescription className="text-slate-300 text-lg leading-relaxed">
+                          {step.description}
+                        </CardDescription>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* 4. Key Features */}
+        <section className="py-20 bg-slate-800/30">
+          <div className="container mx-auto px-4">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              variants={containerVariants}
+              className="max-w-7xl mx-auto"
+            >
+              <motion.div variants={itemVariants} className="text-center mb-16">
+                <h2 className="text-4xl md:text-5xl font-display font-bold mb-6 text-white">
+                  Revolutionary Features
+                </h2>
+                <p className="text-xl text-slate-300 max-w-3xl mx-auto">
+                  Experience the next generation of community finance with cutting-edge blockchain technology
+                </p>
+              </motion.div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {[
+                  {
+                    icon: Zap,
+                    title: "Instant Payouts",
+                    description: "Sub-second finality on Solana ensures immediate access to your funds when it's your turn.",
+                    color: "text-yellow-400",
+                    gradient: "from-yellow-500/20 to-yellow-500/5",
+                    glow: "shadow-yellow-500/25"
+                  },
+                  {
+                    icon: Shield,
+                    title: "Trust Scoring",
+                    description: "Build your on-chain reputation through verified social proofs and contribution history.",
+                    color: "text-green-400", 
+                    gradient: "from-green-500/20 to-green-500/5",
+                    glow: "shadow-green-500/25"
+                  },
+                  {
+                    icon: TrendingUp,
+                    title: "DeFi Yields",
+                    description: "Earn passive income on pooled funds through integrated Solend lending protocols.",
+                    color: "text-blue-400",
+                    gradient: "from-blue-500/20 to-blue-500/5", 
+                    glow: "shadow-blue-500/25"
+                  },
+                  {
+                    icon: Vote,
+                    title: "Governance",
+                    description: "Vote on interest rates, terms, and protocol improvements with your community.",
+                    color: "text-purple-400",
+                    gradient: "from-purple-500/20 to-purple-500/5",
+                    glow: "shadow-purple-500/25"
+                  },
+                  {
+                    icon: Globe,
+                    title: "Global Access", 
+                    description: "Anyone, anywhere can join using USDC stablecoin - no geographic restrictions.",
+                    color: "text-cyan-400",
+                    gradient: "from-cyan-500/20 to-cyan-500/5",
+                    glow: "shadow-cyan-500/25"
+                  },
+                  {
+                    icon: Smartphone,
+                    title: "Mobile First",
+                    description: "Beautiful, responsive design optimized for mobile devices and modern browsers.",
+                    color: "text-pink-400",
+                    gradient: "from-pink-500/20 to-pink-500/5",
+                    glow: "shadow-pink-500/25"
+                  }
+                ].map((feature, index) => (
+                  <motion.div
+                    key={index}
+                    variants={scrollVariants}
+                    whileHover={{ 
+                      scale: 1.05,
+                      y: -5
+                    }}
+                    className="group cursor-pointer"
+                  >
+                    <Card className={`border-white/10 bg-gradient-to-br ${feature.gradient} backdrop-blur-sm h-full hover:shadow-2xl ${feature.glow} transition-all duration-300 group-hover:border-white/30`}>
+                      <CardHeader className="text-center pb-4">
+                        <motion.div 
+                          className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-r ${feature.gradient} border border-white/10`}
+                          whileHover={{ 
+                            rotate: [0, -10, 10, 0],
+                            scale: [1, 1.1, 1]
+                          }}
+                          transition={{ duration: 0.5 }}
+                        >
+                          <feature.icon className={`h-8 w-8 ${feature.color}`} />
+                        </motion.div>
+                        <CardTitle className="text-xl font-semibold text-white group-hover:text-white transition-colors">
+                          {feature.title}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0 text-center">
+                        <CardDescription className="text-slate-300 leading-relaxed group-hover:text-slate-200 transition-colors">
+                          {feature.description}
+                        </CardDescription>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* 5. Social Proof / Market Fit */}
+        <section className="py-20 bg-gradient-to-r from-primary/20 to-secondary/20 backdrop-blur-sm">
+          <div className="container mx-auto px-4">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              variants={containerVariants}
+              className="max-w-6xl mx-auto text-center"
+            >
+              <motion.div variants={itemVariants} className="mb-12">
+                <h2 className="text-4xl md:text-5xl font-display font-bold mb-6 text-white">
+                  Massive Global Opportunity
+                </h2>
+                <p className="text-xl text-slate-300 max-w-3xl mx-auto">
+                  Joining the revolution to democratize access to community-driven financial services
+                </p>
+              </motion.div>
+
+              {/* Stats Grid */}
+              <motion.div variants={itemVariants} className="grid md:grid-cols-3 gap-8 mb-12">
+                {[
+                  {
+                    value: "$300B+",
+                    label: "Global ROSCA Market",
+                    description: "Traditional rotating savings worldwide",
+                    icon: DollarSign
+                  },
+                  {
+                    value: "65,000+",
+                    label: "TPS on Solana",
+                    description: "Lightning-fast transaction processing",
+                    icon: Zap
+                  },
+                  {
+                    value: "1.4B",
+                    label: "Underbanked People",
+                    description: "Potential users worldwide seeking financial inclusion", 
+                    icon: Users
+                  }
+                ].map((stat, index) => (
+                  <motion.div
+                    key={index}
+                    variants={scrollVariants}
+                    whileHover={{ scale: 1.05 }}
+                    className="group"
+                  >
+                    <Card className="border-white/20 bg-white/5 backdrop-blur-md hover:bg-white/10 transition-all duration-300 group-hover:border-white/40">
+                      <CardContent className="p-8 text-center">
+                        <motion.div
+                          className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center"
+                          whileHover={{ rotate: 360 }}
+                          transition={{ duration: 0.8 }}
+                        >
+                          <stat.icon className="w-8 h-8 text-white" />
+                        </motion.div>
+                        <div className="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                          {stat.value}
+                        </div>
+                        <div className="text-xl text-white font-semibold mb-2">{stat.label}</div>
+                        <div className="text-slate-300 text-sm leading-relaxed">{stat.description}</div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </motion.div>
+
+              {/* Testimonial Placeholder */}
+              <motion.div variants={itemVariants}>
+                <Card className="border-white/20 bg-white/5 backdrop-blur-md max-w-2xl mx-auto">
+                  <CardContent className="p-8 text-center">
+                    <div className="flex justify-center mb-4">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star key={star} className="w-6 h-6 text-yellow-400 fill-current" />
+                      ))}
+                    </div>
+                    <blockquote className="text-lg text-slate-200 italic mb-4 leading-relaxed">
+                      "Halo Protocol has revolutionized how our community saves together. The trust scoring system and instant payouts make it feel completely safe and transparent."
+                    </blockquote>
+                    <div className="text-white font-semibold">Maria Chen</div>
+                    <div className="text-slate-400 text-sm">Early Adopter - Tech Savers Circle</div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* 6. Roadmap Preview */}
+        <section className="py-20 bg-slate-900/50">
+          <div className="container mx-auto px-4">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              variants={containerVariants}
+              className="max-w-7xl mx-auto"
+            >
+              <motion.div variants={itemVariants} className="text-center mb-16">
+                <h2 className="text-4xl md:text-5xl font-display font-bold mb-6 text-white">
+                  Development Roadmap
+                </h2>
+                <p className="text-xl text-slate-300 max-w-3xl mx-auto">
+                  Our journey to revolutionize community finance through blockchain innovation
+                </p>
+              </motion.div>
+
+              {/* Horizontal Timeline */}
+              <div className="relative">
+                {/* Timeline Line */}
+                <div className="absolute top-8 left-0 right-0 h-1 bg-gradient-to-r from-primary via-secondary to-accent rounded-full" />
+                
+                <div className="grid md:grid-cols-4 gap-8 relative">
+                  {[
+                    {
+                      phase: "Foundation",
+                      title: "Core Infrastructure",
+                      items: ["Smart Contracts", "Basic Circle Creation", "Contribution Tracking"],
+                      status: "completed",
+                      icon: Building
+                    },
+                    {
+                      phase: "Core Features", 
+                      title: "Advanced Functionality",
+                      items: ["Trust Scoring", "DeFi Integration", "Governance System"],
+                      status: "current",
+                      icon: Layers
+                    },
+                    {
+                      phase: "Advanced",
+                      title: "Enhanced Experience", 
+                      items: ["Mobile App", "Advanced Analytics", "Cross-chain Support"],
+                      status: "upcoming",
+                      icon: Smartphone
+                    },
+                    {
+                      phase: "Ecosystem",
+                      title: "Platform Growth",
+                      items: ["Partner Integrations", "Institutional Tools", "Global Expansion"],
+                      status: "future",
+                      icon: Globe
+                    }
+                  ].map((milestone, index) => (
+                    <motion.div
+                      key={index}
+                      variants={scrollVariants}
+                      whileHover={{ y: -10 }}
+                      className="relative"
+                    >
+                      {/* Timeline Dot */}
+                      <motion.div 
+                        className={`absolute -top-2 left-1/2 transform -translate-x-1/2 w-6 h-6 rounded-full z-10 ${
+                          milestone.status === 'completed' ? 'bg-green-500' :
+                          milestone.status === 'current' ? 'bg-secondary' :
+                          milestone.status === 'upcoming' ? 'bg-yellow-500' :
+                          'bg-slate-500'
+                        } shadow-lg`}
+                        whileHover={{ scale: 1.5 }}
+                      >
+                        <motion.div
+                          className="absolute inset-0 rounded-full"
+                          animate={{
+                            boxShadow: milestone.status === 'current' ? 
+                              ['0 0 0 0 rgba(76, 201, 240, 0.7)', '0 0 0 10px rgba(76, 201, 240, 0)'] :
+                              'none'
+                          }}
+                          transition={{
+                            duration: 2,
+                            repeat: milestone.status === 'current' ? Infinity : 0
+                          }}
+                        />
+                      </motion.div>
+
+                      <Card className={`mt-8 border-white/10 bg-white/5 backdrop-blur-sm h-full transition-all duration-300 hover:bg-white/10 ${
+                        milestone.status === 'completed' ? 'border-green-500/30' :
+                        milestone.status === 'current' ? 'border-secondary/50 shadow-lg shadow-secondary/25' :
+                        'hover:border-white/30'
+                      }`}>
+                        <CardHeader className="text-center">
+                          <motion.div 
+                            className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${
+                              milestone.status === 'completed' ? 'bg-green-500/20' :
+                              milestone.status === 'current' ? 'bg-secondary/20' :
+                              milestone.status === 'upcoming' ? 'bg-yellow-500/20' :
+                              'bg-slate-500/20'
+                            }`}
+                            whileHover={{ rotate: 360 }}
+                            transition={{ duration: 0.8 }}
+                          >
+                            <milestone.icon className={`w-8 h-8 ${
+                              milestone.status === 'completed' ? 'text-green-400' :
+                              milestone.status === 'current' ? 'text-secondary' :
+                              milestone.status === 'upcoming' ? 'text-yellow-400' :
+                              'text-slate-400'
+                            }`} />
+                          </motion.div>
+                          <Badge variant="outline" className={`mb-2 text-xs ${
+                            milestone.status === 'completed' ? 'text-green-400 border-green-400/30' :
+                            milestone.status === 'current' ? 'text-secondary border-secondary/30' :
+                            milestone.status === 'upcoming' ? 'text-yellow-400 border-yellow-400/30' :
+                            'text-slate-400 border-slate-400/30'
+                          }`}>
+                            {milestone.phase}
+                          </Badge>
+                          <CardTitle className="text-lg text-white">{milestone.title}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {milestone.items.map((item, itemIndex) => (
+                              <li key={itemIndex} className="flex items-center gap-2 text-slate-300 text-sm">
+                                {milestone.status === 'completed' ? 
+                                  <CheckCircle className="w-4 h-4 text-green-400" /> :
+                                  <div className="w-2 h-2 rounded-full bg-slate-400" />
+                                }
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* 7. Call-to-Action Banner */}
+        <section className="py-20 relative overflow-hidden">
+          {/* Animated Background */}
+          <div className="absolute inset-0 bg-gradient-to-r from-primary via-secondary to-accent" />
+          <motion.div
+            className="absolute inset-0"
+            animate={{
+              background: [
+                "radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%)",
+                "radial-gradient(circle at 80% 50%, rgba(255,255,255,0.1) 0%, transparent 50%)",
+                "radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%)"
+              ]
+            }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          />
+          
+          <div className="container mx-auto px-4 relative z-10">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              variants={containerVariants}
+              className="text-center max-w-4xl mx-auto"
+            >
               <motion.div
+                variants={itemVariants}
                 animate={{ 
                   rotate: [0, 5, -5, 0],
                   scale: [1, 1.1, 1]
                 }}
                 transition={{ 
-                  duration: 2,
+                  duration: 3,
                   repeat: Infinity,
-                  repeatDelay: 3
+                  repeatDelay: 2
                 }}
-                className="inline-block mb-4"
+                className="inline-block mb-8"
               >
-                <Target className="h-16 w-16 mx-auto text-white" />
+                <div className="w-24 h-24 mx-auto rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-2xl">
+                  <Target className="h-12 w-12 text-white" />
+                </div>
               </motion.div>
-              <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">Ready to Start Saving?</h2>
-              <p className="text-white/90 mb-6 max-w-2xl mx-auto text-lg">
-                Join thousands of users already earning yield and building financial reputation through our trusted savings circles.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              
+              <motion.h2 variants={itemVariants} className="text-4xl md:text-6xl font-display font-bold mb-6 text-white">
+                Join the Future of Community Finance
+              </motion.h2>
+              
+              <motion.p variants={itemVariants} className="text-xl text-white/90 mb-8 max-w-3xl mx-auto leading-relaxed">
+                Start earning yield, building trust, and growing wealth together with thousands of users already transforming how communities save and invest.
+              </motion.p>
+              
+              <motion.div variants={itemVariants}>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Button size="lg" variant="secondary" className="bg-white text-primary hover:bg-gray-100 px-8 py-4 font-semibold rounded-xl" asChild>
-                    <Link href="/dashboard">
-                      Go to Dashboard <ArrowRight className="ml-2 h-5 w-5" />
+                  <Button size="lg" className="bg-white text-primary hover:bg-slate-100 px-12 py-6 text-xl font-bold rounded-2xl shadow-2xl hover:shadow-3xl transition-all" asChild>
+                    <Link href={authenticated ? "/dashboard" : "#"} onClick={!authenticated ? () => useAuth().login() : undefined}>
+                      <Sparkles className="h-6 w-6 mr-3" />
+                      Get Started
                     </Link>
                   </Button>
                 </motion.div>
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Button size="lg" variant="outline" className="bg-transparent border-white text-white hover:bg-white/10 px-8 py-4 font-semibold rounded-xl" asChild>
-                    <Link href="/circles">
-                      <Sparkles className="h-5 w-5 mr-2" />
-                      Explore Circles
-                    </Link>
-                  </Button>
-                </motion.div>
-              </div>
-            </div>
-          </motion.div>
-        )}
+              </motion.div>
+            </motion.div>
+          </div>
+        </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t mt-16 py-8 bg-white">
-        <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>&copy; 2024 Halo Protocol. Building the future of community finance.</p>
+      {/* 8. Footer */}
+      <footer className="bg-slate-900 border-t border-white/10 py-16">
+        <div className="container mx-auto px-4">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            {/* Brand */}
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center">
+                  <CircleDollarSign className="h-6 w-6 text-white" />
+                </div>
+                <span className="text-2xl font-display font-bold text-white">Halo Protocol</span>
+              </div>
+              <p className="text-slate-300 mb-6 max-w-md leading-relaxed">
+                Revolutionizing community finance through blockchain technology, trust scoring, and DeFi integration.
+              </p>
+              <div className="flex gap-4">
+                <motion.a
+                  href="#" 
+                  whileHover={{ scale: 1.1 }}
+                  className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                >
+                  <Twitter className="w-5 h-5 text-white" />
+                </motion.a>
+                <motion.a
+                  href="#"
+                  whileHover={{ scale: 1.1 }}
+                  className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                >
+                  <Github className="w-5 h-5 text-white" />
+                </motion.a>
+                <motion.a
+                  href="#"
+                  whileHover={{ scale: 1.1 }}
+                  className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                >
+                  <MessageSquare className="w-5 h-5 text-white" />
+                </motion.a>
+              </div>
+            </div>
+
+            {/* Links */}
+            <div>
+              <h3 className="font-semibold text-white mb-4">Resources</h3>
+              <ul className="space-y-2">
+                {[
+                  { name: "Documentation", icon: FileText },
+                  { name: "GitHub", icon: Github },
+                  { name: "Whitepaper", icon: FileText }
+                ].map((link, index) => (
+                  <li key={index}>
+                    <motion.a
+                      href="#"
+                      whileHover={{ x: 4 }}
+                      className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors"
+                    >
+                      <link.icon className="w-4 h-4" />
+                      {link.name}
+                      <ExternalLink className="w-3 h-3 ml-auto" />
+                    </motion.a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h3 className="font-semibold text-white mb-4">Contact</h3>
+              <ul className="space-y-2">
+                {[
+                  { name: "Support", icon: Mail },
+                  { name: "Community", icon: Users },
+                  { name: "Partners", icon: Building }
+                ].map((contact, index) => (
+                  <li key={index}>
+                    <motion.a
+                      href="#"
+                      whileHover={{ x: 4 }}
+                      className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors"
+                    >
+                      <contact.icon className="w-4 h-4" />
+                      {contact.name}
+                    </motion.a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="border-t border-white/10 pt-8 text-center">
+            <p className="text-slate-400 text-sm mb-2">
+              &copy; 2024 Halo Protocol. Building the future of community finance.
+            </p>
+            <p className="text-slate-500 text-xs">
+              Halo Protocol is experimental software. Use at your own risk.
+            </p>
+          </div>
         </div>
       </footer>
     </div>
