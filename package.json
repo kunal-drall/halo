@@ -8,6 +8,7 @@
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "test": "anchor test",
     "test:solend": "npx mocha --require ts-node/register tests/solend-integration.ts --timeout 120000",
+    "test:automation": "npx mocha --require ts-node/register tests/automation.ts --timeout 120000",
     "build": "anchor build",
     "deploy:localnet": "anchor deploy --provider.cluster localnet",
     "deploy:devnet": "anchor deploy --provider.cluster devnet",
@@ -15,6 +16,8 @@
     "example": "ts-node app/example.ts",
     "example:solend": "ts-node app/solend-simple-example.ts",
     "example:solend-full": "ts-node app/solend-example.ts",
+    "example:automation": "ts-node app/automation-example.ts",
+    "example:production": "ts-node app/production-automation-example.ts",
     "deploy-script": "ts-node app/deploy.ts"
   },
   "dependencies": {
