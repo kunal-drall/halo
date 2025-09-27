@@ -479,6 +479,188 @@ export class HaloProtocolClient {
   }
 
   // =============================================================================
+  // Dashboard Query Methods for Frontend Integration
+  // =============================================================================
+
+  /**
+   * Get comprehensive trust score data formatted for dashboard consumption
+   */
+  async getDashboardTrustScore(userPublicKey: PublicKey) {
+    try {
+      const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
+      const trustScoreData = await this.getTrustScoreInfo(trustScoreAccount);
+
+      // Format data for dashboard
+      const dashboardData = {
+        user: userPublicKey.toString(),
+        score: trustScoreData.score,
+        tier: this.getTierName(trustScoreData.tier),
+        stakeMultiplier: this.getTierStakeMultiplier(trustScoreData.tier),
+        breakdown: {
+          paymentHistory: {
+            score: trustScoreData.paymentHistoryScore,
+            maxScore: 400,
+            weight: 40,
+            percentage: Math.round((trustScoreData.paymentHistoryScore / 400) * 100)
+          },
+          circleCompletions: {
+            score: trustScoreData.completionScore,
+            maxScore: 300,
+            weight: 30,
+            percentage: Math.round((trustScoreData.completionScore / 300) * 100)
+          },
+          defiActivity: {
+            score: trustScoreData.defiActivityScore,
+            maxScore: 200,
+            weight: 20,
+            percentage: Math.round((trustScoreData.defiActivityScore / 200) * 100)
+          },
+          socialProofs: {
+            score: trustScoreData.socialProofScore,
+            maxScore: 100,
+            weight: 10,
+            percentage: Math.round((trustScoreData.socialProofScore / 100) * 100)
+          }
+        },
+        metadata: {
+          circlesCompleted: trustScoreData.circlesCompleted,
+          circlesJoined: trustScoreData.circlesJoined,
+          totalContributions: trustScoreData.totalContributions.toString(),
+          missedContributions: trustScoreData.missedContributions,
+          socialProofs: trustScoreData.socialProofs.map(proof => ({
+            type: proof.proofType,
+            identifier: proof.identifier,
+            verified: proof.verified,
+            timestamp: proof.timestamp.toString()
+          })),
+          lastUpdated: trustScoreData.lastUpdated.toString()
+        }
+      };
+
+      return dashboardData;
+    } catch (error) {
+      console.error('Error fetching dashboard trust score:', error);
+      throw new Error(`Failed to fetch trust score for user ${userPublicKey.toString()}: ${error}`);
+    }
+  }
+
+  /**
+   * Get trust scores for multiple users (batch query)
+   * Useful for displaying leaderboards, circle member lists, etc.
+   */
+  async getBatchTrustScores(userPublicKeys: PublicKey[], includeErrors = false) {
+    const results = [];
+
+    for (const publicKey of userPublicKeys) {
+      try {
+        const trustScore = await this.getDashboardTrustScore(publicKey);
+        results.push(trustScore);
+      } catch (error) {
+        if (includeErrors) {
+          results.push({
+            user: publicKey.toString(),
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+        // If not including errors, just skip failed ones
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get trust score rankings/leaderboard
+   * Returns top users by score, with optional filtering by tier
+   */
+  async getTrustScoreLeaderboard(limit = 50, tier?: string, circleId?: PublicKey) {
+    // Note: This would require indexing in production
+    // For now, we'll return a mock implementation
+    throw new Error('Leaderboard functionality requires blockchain indexing service');
+  }
+
+  /**
+   * Get trust score analytics for dashboard insights
+   */
+  async getTrustScoreAnalytics(period = '30d') {
+    // Note: This would require historical data indexing in production
+    // For now, we'll return a mock implementation
+    throw new Error('Analytics functionality requires historical data indexing service');
+  }
+
+  /**
+   * Validate if a user meets minimum trust requirements for joining a circle
+   */
+  async validateCircleEligibility(
+    userPublicKey: PublicKey, 
+    circleAccount: PublicKey,
+    requiredContributionAmount: number
+  ) {
+    try {
+      const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
+      const trustScore = await this.getTrustScoreInfo(trustScoreAccount);
+      const circle = await this.program.account.circle.fetch(circleAccount);
+
+      const requiredStake = await this.getMinimumStakeRequirement(
+        userPublicKey, 
+        requiredContributionAmount
+      );
+
+      return {
+        eligible: true, // Basic check - could add more sophisticated rules
+        userScore: trustScore.score,
+        userTier: this.getTierName(trustScore.tier),
+        requiredStake,
+        stakeMultiplier: this.getTierStakeMultiplier(trustScore.tier),
+        recommendations: this.generateEligibilityRecommendations(trustScore)
+      };
+    } catch (error) {
+      // User doesn't have trust score yet
+      return {
+        eligible: true, // Allow newcomers
+        userScore: 0,
+        userTier: 'Newcomer',
+        requiredStake: requiredContributionAmount * 2, // 2x for newcomers
+        stakeMultiplier: 200,
+        recommendations: [
+          'Complete trust score initialization',
+          'Add and verify social proofs',
+          'Consider starting with smaller circles'
+        ]
+      };
+    }
+  }
+
+  /**
+   * Generate recommendations for improving trust score
+   */
+  private generateEligibilityRecommendations(trustScore: any): string[] {
+    const recommendations = [];
+
+    if (trustScore.paymentHistoryScore < 200) {
+      recommendations.push('Maintain consistent payment history in circles');
+    }
+
+    if (trustScore.completionScore < 150) {
+      recommendations.push('Complete more circles to improve completion score');
+    }
+
+    if (trustScore.defiActivityScore < 100) {
+      recommendations.push('Increase DeFi activity through Solend lending/borrowing');
+    }
+
+    if (trustScore.socialProofScore < 50) {
+      recommendations.push('Add and verify more social proof credentials');
+    }
+
+    if (trustScore.score >= 750) {
+      recommendations.push('Excellent trust score! You qualify for premium benefits');
+    }
+
+    return recommendations;
+  }
+
+  // =============================================================================
   // Automation Methods  
   // =============================================================================
 
