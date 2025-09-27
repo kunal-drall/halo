@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::errors::HaloError;
-use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution, TrustScore, TrustTier, SocialProof};
+use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution, TrustScore, TrustTier, SocialProof, GovernanceProposal, Vote, Auction, Bid, ProposalType, ProposalStatus, AuctionStatus};
 
 pub fn initialize_circle(
     ctx: Context<InitializeCircle>,
@@ -742,4 +742,492 @@ pub struct CompleteCircleUpdateTrust<'info> {
     pub circle: Account<'info, Circle>,
     
     pub authority: Signer<'info>, // Could be circle creator, member, or governance
+}
+
+// Governance and Auction Instructions
+
+pub fn create_proposal(
+    ctx: Context<CreateProposal>,
+    title: String,
+    description: String,
+    proposal_type: u8, // 0 = InterestRateChange, 1 = CircleParameter, 2 = Emergency
+    voting_duration_hours: u16,
+    execution_threshold: u64,
+    new_interest_rate: Option<u16>,
+) -> Result<()> {
+    require!(title.len() <= GovernanceProposal::MAX_TITLE_LENGTH, HaloError::InvalidProposalType);
+    require!(description.len() <= GovernanceProposal::MAX_DESCRIPTION_LENGTH, HaloError::InvalidProposalType);
+    require!(voting_duration_hours > 0 && voting_duration_hours <= 7 * 24, HaloError::InvalidVotingPeriod); // Max 7 days
+    require!(proposal_type <= 2, HaloError::InvalidProposalType);
+    
+    let clock = Clock::get()?;
+    let circle = &ctx.accounts.circle;
+    let proposal = &mut ctx.accounts.proposal;
+    let proposer = &ctx.accounts.proposer;
+
+    // Check if proposer is a member of the circle
+    require!(circle.members.contains(&proposer.key()), HaloError::MemberNotFound);
+
+    // Set proposal type
+    let prop_type = match proposal_type {
+        0 => ProposalType::InterestRateChange,
+        1 => ProposalType::CircleParameter,
+        2 => ProposalType::Emergency,
+        _ => return Err(HaloError::InvalidProposalType.into()),
+    };
+
+    // For interest rate proposals, require the new rate parameter
+    if prop_type == ProposalType::InterestRateChange {
+        require!(new_interest_rate.is_some(), HaloError::InvalidProposalType);
+        require!(new_interest_rate.unwrap() <= 10000, HaloError::InvalidProposalType); // Max 100%
+    }
+
+    let voting_end = clock.unix_timestamp + (voting_duration_hours as i64 * 3600);
+
+    // Initialize proposal
+    proposal.id = clock.unix_timestamp as u64;
+    proposal.circle = circle.key();
+    proposal.proposer = proposer.key();
+    proposal.title = title;
+    proposal.description = description;
+    proposal.proposal_type = prop_type;
+    proposal.status = ProposalStatus::Active;
+    proposal.voting_start = clock.unix_timestamp;
+    proposal.voting_end = voting_end;
+    proposal.execution_threshold = execution_threshold;
+    proposal.total_voting_power = 0;
+    proposal.votes_for = 0;
+    proposal.votes_against = 0;
+    proposal.quadratic_votes_for = 0;
+    proposal.quadratic_votes_against = 0;
+    proposal.executed = false;
+    proposal.executed_at = None;
+    proposal.new_interest_rate = new_interest_rate;
+    proposal.bump = ctx.bumps.proposal;
+
+    emit!(ProposalCreated {
+        proposal_id: proposal.id,
+        circle: circle.key(),
+        proposer: proposer.key(),
+        proposal_type: proposal_type,
+        voting_end,
+    });
+
+    Ok(())
+}
+
+pub fn cast_vote(
+    ctx: Context<CastVote>,
+    support: bool,
+    voting_power: u64,
+) -> Result<()> {
+    let proposal = &mut ctx.accounts.proposal;
+    let voter = &ctx.accounts.voter;
+    let vote_account = &mut ctx.accounts.vote;
+    let clock = Clock::get()?;
+
+    // Check proposal is active and in voting period
+    require!(proposal.is_active(), HaloError::ProposalNotActive);
+    require!(clock.unix_timestamp >= proposal.voting_start, HaloError::VotingPeriodNotStarted);
+    require!(!proposal.voting_ended(clock.unix_timestamp), HaloError::VotingPeriodEnded);
+
+    // Validate voting power (this should be validated against SPL token balance)
+    require!(voting_power > 0, HaloError::InsufficientVotingPower);
+    
+    // Calculate quadratic weight: sqrt(voting_power)
+    let quadratic_weight = (voting_power as f64).sqrt() as u64;
+    require!(quadratic_weight > 0, HaloError::InsufficientVotingPower);
+
+    // Initialize vote record
+    vote_account.proposal = proposal.key();
+    vote_account.voter = voter.key();
+    vote_account.voting_power = voting_power;
+    vote_account.quadratic_weight = quadratic_weight;
+    vote_account.support = support;
+    vote_account.timestamp = clock.unix_timestamp;
+    vote_account.bump = ctx.bumps.vote;
+
+    // Update proposal tallies
+    proposal.total_voting_power = proposal.total_voting_power.checked_add(voting_power)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+    
+    if support {
+        proposal.votes_for = proposal.votes_for.checked_add(voting_power)
+            .ok_or(HaloError::ArithmeticOverflow)?;
+        proposal.quadratic_votes_for = proposal.quadratic_votes_for.checked_add(quadratic_weight)
+            .ok_or(HaloError::ArithmeticOverflow)?;
+    } else {
+        proposal.votes_against = proposal.votes_against.checked_add(voting_power)
+            .ok_or(HaloError::ArithmeticOverflow)?;
+        proposal.quadratic_votes_against = proposal.quadratic_votes_against.checked_add(quadratic_weight)
+            .ok_or(HaloError::ArithmeticOverflow)?;
+    }
+
+    emit!(VoteCast {
+        proposal_id: proposal.id,
+        voter: voter.key(),
+        support,
+        voting_power,
+        quadratic_weight,
+    });
+
+    Ok(())
+}
+
+pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
+    let proposal = &mut ctx.accounts.proposal;
+    let circle = &mut ctx.accounts.circle;
+    let clock = Clock::get()?;
+
+    // Check proposal can be executed
+    require!(proposal.is_active(), HaloError::ProposalNotActive);
+    require!(proposal.voting_ended(clock.unix_timestamp), HaloError::VotingPeriodEnded);
+    require!(!proposal.executed, HaloError::ProposalAlreadyExecuted);
+    require!(proposal.has_passed(), HaloError::ExecutionThresholdNotMet);
+
+    // Execute based on proposal type
+    match proposal.proposal_type {
+        ProposalType::InterestRateChange => {
+            if let Some(new_rate) = proposal.new_interest_rate {
+                circle.penalty_rate = new_rate;
+            }
+        },
+        ProposalType::CircleParameter => {
+            // Placeholder for circle parameter changes
+            // This would need specific parameter change logic
+        },
+        ProposalType::Emergency => {
+            // Placeholder for emergency actions
+            // This would need specific emergency logic
+        },
+    }
+
+    // Mark as executed
+    proposal.status = ProposalStatus::Executed;
+    proposal.executed = true;
+    proposal.executed_at = Some(clock.unix_timestamp);
+
+    emit!(ProposalExecuted {
+        proposal_id: proposal.id,
+        circle: circle.key(),
+        executed_at: clock.unix_timestamp,
+    });
+
+    Ok(())
+}
+
+pub fn create_auction(
+    ctx: Context<CreateAuction>,
+    pot_amount: u64,
+    starting_bid: u64,
+    duration_hours: u16,
+) -> Result<()> {
+    require!(duration_hours > 0 && duration_hours <= 72, HaloError::InvalidAuctionDuration); // Max 72 hours
+    require!(pot_amount > 0, HaloError::NoPotAvailableForAuction);
+    require!(starting_bid > 0 && starting_bid <= pot_amount, HaloError::BidTooLow);
+
+    let clock = Clock::get()?;
+    let circle = &ctx.accounts.circle;
+    let auction = &mut ctx.accounts.auction;
+    let initiator = &ctx.accounts.initiator;
+
+    // Check if initiator is a member of the circle
+    require!(circle.members.contains(&initiator.key()), HaloError::MemberNotFound);
+
+    let end_time = clock.unix_timestamp + (duration_hours as i64 * 3600);
+
+    // Initialize auction
+    auction.id = clock.unix_timestamp as u64;
+    auction.circle = circle.key();
+    auction.initiator = initiator.key();
+    auction.pot_amount = pot_amount;
+    auction.starting_bid = starting_bid;
+    auction.highest_bid = starting_bid;
+    auction.highest_bidder = None;
+    auction.start_time = clock.unix_timestamp;
+    auction.end_time = end_time;
+    auction.status = AuctionStatus::Active;
+    auction.settled = false;
+    auction.bid_count = 0;
+    auction.bump = ctx.bumps.auction;
+
+    emit!(AuctionCreated {
+        auction_id: auction.id,
+        circle: circle.key(),
+        initiator: initiator.key(),
+        pot_amount,
+        starting_bid,
+        end_time,
+    });
+
+    Ok(())
+}
+
+pub fn place_bid(
+    ctx: Context<PlaceBid>,
+    bid_amount: u64,
+) -> Result<()> {
+    let auction = &mut ctx.accounts.auction;
+    let bidder = &ctx.accounts.bidder;
+    let bid_account = &mut ctx.accounts.bid;
+    let member_account = &ctx.accounts.member;
+    let clock = Clock::get()?;
+
+    // Check auction is active
+    require!(auction.is_active(clock.unix_timestamp), HaloError::AuctionNotActive);
+    require!(!auction.has_ended(clock.unix_timestamp), HaloError::AuctionHasEnded);
+
+    // Check bidder is not the initiator
+    require!(bidder.key() != auction.initiator, HaloError::CannotBidOnOwnAuction);
+
+    // Check bid is higher than current highest
+    require!(bid_amount > auction.highest_bid, HaloError::BidTooLow);
+
+    // Check bidder has sufficient stake (minimum 10% of bid amount)
+    let minimum_stake_required = bid_amount / 10;
+    require!(member_account.stake_amount >= minimum_stake_required, HaloError::InsufficientStakeForBid);
+
+    // Transfer bid amount from bidder
+    if bid_amount > 0 {
+        let cpi_accounts = Transfer {
+            from: ctx.accounts.bidder_token_account.to_account_info(),
+            to: ctx.accounts.auction_escrow_account.to_account_info(),
+            authority: bidder.to_account_info(),
+        };
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        token::transfer(cpi_ctx, bid_amount)?;
+    }
+
+    // Update auction state
+    auction.highest_bid = bid_amount;
+    auction.highest_bidder = Some(bidder.key());
+    auction.bid_count = auction.bid_count.checked_add(1)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+
+    // Record bid
+    bid_account.auction = auction.key();
+    bid_account.bidder = bidder.key();
+    bid_account.amount = bid_amount;
+    bid_account.bidder_stake = member_account.stake_amount;
+    bid_account.timestamp = clock.unix_timestamp;
+    bid_account.is_highest = true;
+    bid_account.bump = ctx.bumps.bid;
+
+    emit!(BidPlaced {
+        auction_id: auction.id,
+        bidder: bidder.key(),
+        bid_amount,
+        timestamp: clock.unix_timestamp,
+    });
+
+    Ok(())
+}
+
+pub fn settle_auction(ctx: Context<SettleAuction>) -> Result<()> {
+    let auction = &mut ctx.accounts.auction;
+    let clock = Clock::get()?;
+
+    // Check auction has ended
+    require!(auction.has_ended(clock.unix_timestamp), HaloError::AuctionNotEnded);
+    require!(!auction.settled, HaloError::AuctionAlreadySettled);
+
+    // Mark as settled
+    auction.status = AuctionStatus::Ended;
+    auction.settled = true;
+
+    // If there was a winning bid, transfer pot to winner
+    if let Some(winner) = auction.highest_bidder {
+        // Transfer pot amount to winner
+        // This would need proper token transfer logic
+        
+        emit!(AuctionSettled {
+            auction_id: auction.id,
+            winner: Some(winner),
+            winning_bid: auction.highest_bid,
+            settled_at: clock.unix_timestamp,
+        });
+    } else {
+        emit!(AuctionSettled {
+            auction_id: auction.id,
+            winner: None,
+            winning_bid: 0,
+            settled_at: clock.unix_timestamp,
+        });
+    }
+
+    Ok(())
+}
+
+// Context structs for governance instructions
+
+#[derive(Accounts)]
+#[instruction(title: String, description: String)]
+pub struct CreateProposal<'info> {
+    #[account(
+        init,
+        payer = proposer,
+        space = GovernanceProposal::space(),
+        seeds = [b"proposal", circle.key().as_ref(), &Clock::get()?.unix_timestamp.to_le_bytes()],
+        bump
+    )]
+    pub proposal: Account<'info, GovernanceProposal>,
+
+    #[account(mut)]
+    pub circle: Account<'info, Circle>,
+
+    #[account(mut)]
+    pub proposer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CastVote<'info> {
+    #[account(mut)]
+    pub proposal: Account<'info, GovernanceProposal>,
+
+    #[account(
+        init,
+        payer = voter,
+        space = Vote::space(),
+        seeds = [b"vote", proposal.key().as_ref(), voter.key().as_ref()],
+        bump
+    )]
+    pub vote: Account<'info, Vote>,
+
+    #[account(mut)]
+    pub voter: Signer<'info>,
+
+    // SPL Token account for voting power validation
+    pub voter_token_account: Account<'info, TokenAccount>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ExecuteProposal<'info> {
+    #[account(mut)]
+    pub proposal: Account<'info, GovernanceProposal>,
+
+    #[account(mut)]
+    pub circle: Account<'info, Circle>,
+
+    pub executor: Signer<'info>,
+}
+
+// Context structs for auction instructions
+
+#[derive(Accounts)]
+pub struct CreateAuction<'info> {
+    #[account(
+        init,
+        payer = initiator,
+        space = Auction::space(),
+        seeds = [b"auction", circle.key().as_ref(), &Clock::get()?.unix_timestamp.to_le_bytes()],
+        bump
+    )]
+    pub auction: Account<'info, Auction>,
+
+    #[account(mut)]
+    pub circle: Account<'info, Circle>,
+
+    #[account(mut)]
+    pub initiator: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct PlaceBid<'info> {
+    #[account(mut)]
+    pub auction: Account<'info, Auction>,
+
+    #[account(
+        init,
+        payer = bidder,
+        space = Bid::space(),
+        seeds = [b"bid", auction.key().as_ref(), bidder.key().as_ref(), &Clock::get()?.unix_timestamp.to_le_bytes()],
+        bump
+    )]
+    pub bid: Account<'info, Bid>,
+
+    #[account(mut)]
+    pub bidder: Signer<'info>,
+
+    #[account(
+        seeds = [b"member", auction.circle.as_ref(), bidder.key().as_ref()],
+        bump = member.bump
+    )]
+    pub member: Account<'info, Member>,
+
+    #[account(mut)]
+    pub bidder_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub auction_escrow_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SettleAuction<'info> {
+    #[account(mut)]
+    pub auction: Account<'info, Auction>,
+
+    pub settler: Signer<'info>,
+}
+
+// Event definitions
+
+#[event]
+pub struct ProposalCreated {
+    pub proposal_id: u64,
+    pub circle: Pubkey,
+    pub proposer: Pubkey,
+    pub proposal_type: u8,
+    pub voting_end: i64,
+}
+
+#[event]
+pub struct VoteCast {
+    pub proposal_id: u64,
+    pub voter: Pubkey,
+    pub support: bool,
+    pub voting_power: u64,
+    pub quadratic_weight: u64,
+}
+
+#[event]
+pub struct ProposalExecuted {
+    pub proposal_id: u64,
+    pub circle: Pubkey,
+    pub executed_at: i64,
+}
+
+#[event]
+pub struct AuctionCreated {
+    pub auction_id: u64,
+    pub circle: Pubkey,
+    pub initiator: Pubkey,
+    pub pot_amount: u64,
+    pub starting_bid: u64,
+    pub end_time: i64,
+}
+
+#[event]
+pub struct BidPlaced {
+    pub auction_id: u64,
+    pub bidder: Pubkey,
+    pub bid_amount: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct AuctionSettled {
+    pub auction_id: u64,
+    pub winner: Option<Pubkey>,
+    pub winning_bid: u64,
+    pub settled_at: i64,
 }
