@@ -1,0 +1,21 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "installCommand": "npm install --legacy-peer-deps",
+  "env": {
+    "NEXT_PUBLIC_SOLANA_NETWORK": "devnet",
+    "NEXT_PUBLIC_RPC_ENDPOINT": "https://api.devnet.solana.com"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_SOLANA_NETWORK": "devnet",
+      "NEXT_PUBLIC_RPC_ENDPOINT": "https://api.devnet.solana.com"
+    }
+  },
+  "functions": {
+    "app/**/*.{js,ts,tsx}": {
+      "runtime": "nodejs18.x"
+    }
+  }
+}
