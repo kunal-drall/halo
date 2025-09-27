@@ -17,6 +17,7 @@
     "example:solend": "ts-node app/solend-simple-example.ts",
     "example:solend-full": "ts-node app/solend-example.ts",
     "example:automation": "ts-node app/automation-example.ts",
+    "example:production": "ts-node app/production-automation-example.ts",
     "deploy-script": "ts-node app/deploy.ts"
   },
   "dependencies": {
