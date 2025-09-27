@@ -1,11 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { useWallet } from '@solana/wallet-adapter-react'
+import { useAuth } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { WalletButton } from '@/components/wallet/WalletConnection'
+const AuthButton = () => {
+  const { login } = useAuth()
+  
+  return (
+    <Button 
+      onClick={login}
+      className="bg-gradient-to-r from-primary to-secondary text-white border-0"
+    >
+      Sign In
+    </Button>
+  )
+}
 import { 
   ArrowLeft,
   Plus,
@@ -20,7 +31,7 @@ import {
 import Link from 'next/link'
 
 export default function CreateCirclePage() {
-  const { connected } = useWallet()
+  const { authenticated } = useAuth()
   
   // Form state
   const [formData, setFormData] = useState({
@@ -38,7 +49,7 @@ export default function CreateCirclePage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  if (!connected) {
+  if (!authenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
         <Card className="w-full max-w-md">
@@ -52,7 +63,7 @@ export default function CreateCirclePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <WalletButton />
+            <AuthButton />
           </CardContent>
         </Card>
       </div>
@@ -127,7 +138,7 @@ export default function CreateCirclePage() {
               </div>
             </div>
             
-            <WalletButton />
+            <AuthButton />
           </div>
         </div>
       </header>
