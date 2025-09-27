@@ -302,3 +302,212 @@ impl TrustScore {
         self.update_tier();
     }
 }
+
+// Switchboard Oracle Automation Structures
+
+/// Global automation configuration and state
+#[account]
+pub struct AutomationState {
+    /// Authority that can update automation settings
+    pub authority: Pubkey,
+    /// Switchboard queue account for automation jobs
+    pub switchboard_queue: Pubkey,
+    /// Automation enabled flag
+    pub enabled: bool,
+    /// Number of active automation jobs
+    pub active_jobs: u32,
+    /// Minimum interval between automation checks (in seconds)
+    pub min_interval: i64,
+    /// Last global automation check timestamp
+    pub last_check: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl AutomationState {
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // authority
+        32 + // switchboard_queue
+        1 + // enabled
+        4 + // active_jobs
+        8 + // min_interval
+        8 + // last_check
+        1 + // bump
+        50; // padding
+}
+
+/// Per-circle automation configuration
+#[account]
+pub struct CircleAutomation {
+    /// The circle this automation belongs to
+    pub circle: Pubkey,
+    /// Switchboard job account for this circle
+    pub job_account: Pubkey,
+    /// Whether contribution collection is automated
+    pub auto_collect_enabled: bool,
+    /// Whether payout distribution is automated
+    pub auto_distribute_enabled: bool,
+    /// Whether penalty enforcement is automated
+    pub auto_penalty_enabled: bool,
+    /// Monthly contribution collection schedule (unix timestamp)
+    pub contribution_schedule: Vec<i64>,
+    /// Distribution schedule (unix timestamp)
+    pub distribution_schedule: Vec<i64>,
+    /// Penalty check schedule (unix timestamp)
+    pub penalty_schedule: Vec<i64>,
+    /// Last contribution collection timestamp
+    pub last_contribution_check: i64,
+    /// Last distribution timestamp
+    pub last_distribution_check: i64,
+    /// Last penalty check timestamp
+    pub last_penalty_check: i64,
+    /// Circle created at timestamp (for calculations)
+    pub circle_created_at: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl CircleAutomation {
+    pub const MAX_SCHEDULE_ITEMS: usize = 36; // 3 years worth of monthly events
+    
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // circle
+        32 + // job_account
+        1 + // auto_collect_enabled
+        1 + // auto_distribute_enabled  
+        1 + // auto_penalty_enabled
+        4 + (8 * Self::MAX_SCHEDULE_ITEMS) + // contribution_schedule
+        4 + (8 * Self::MAX_SCHEDULE_ITEMS) + // distribution_schedule
+        4 + (8 * Self::MAX_SCHEDULE_ITEMS) + // penalty_schedule
+        8 + // last_contribution_check
+        8 + // last_distribution_check
+        8 + // last_penalty_check
+        8 + // circle_created_at
+        1 + // bump
+        100; // padding
+    
+    /// Generate contribution schedule for a circle
+    pub fn generate_contribution_schedule(created_at: i64, duration_months: u8) -> Vec<i64> {
+        let mut schedule = Vec::new();
+        let month_duration = 30 * 24 * 60 * 60; // 30 days in seconds
+        
+        for month in 0..duration_months {
+            let contribution_time = created_at + (month as i64 * month_duration);
+            schedule.push(contribution_time);
+        }
+        
+        schedule
+    }
+    
+    /// Generate distribution schedule for a circle
+    pub fn generate_distribution_schedule(created_at: i64, duration_months: u8) -> Vec<i64> {
+        let mut schedule = Vec::new();
+        let month_duration = 30 * 24 * 60 * 60;
+        let distribution_offset = 25 * 24 * 60 * 60; // 25 days into each month
+        
+        for month in 0..duration_months {
+            let distribution_time = created_at + (month as i64 * month_duration) + distribution_offset;
+            schedule.push(distribution_time);
+        }
+        
+        schedule
+    }
+    
+    /// Generate penalty check schedule for a circle  
+    pub fn generate_penalty_schedule(created_at: i64, duration_months: u8) -> Vec<i64> {
+        let mut schedule = Vec::new();
+        let month_duration = 30 * 24 * 60 * 60;
+        let penalty_offset = 27 * 24 * 60 * 60; // 27 days into each month
+        
+        for month in 0..duration_months {
+            let penalty_time = created_at + (month as i64 * month_duration) + penalty_offset;
+            schedule.push(penalty_time);
+        }
+        
+        schedule
+    }
+    
+    /// Check if it's time for contribution collection
+    pub fn should_collect_contributions(&self, current_time: i64) -> bool {
+        if !self.auto_collect_enabled {
+            return false;
+        }
+        
+        for &scheduled_time in &self.contribution_schedule {
+            if current_time >= scheduled_time && self.last_contribution_check < scheduled_time {
+                return true;
+            }
+        }
+        
+        false
+    }
+    
+    /// Check if it's time for payout distribution
+    pub fn should_distribute_payouts(&self, current_time: i64) -> bool {
+        if !self.auto_distribute_enabled {
+            return false;
+        }
+        
+        for &scheduled_time in &self.distribution_schedule {
+            if current_time >= scheduled_time && self.last_distribution_check < scheduled_time {
+                return true;
+            }
+        }
+        
+        false
+    }
+    
+    /// Check if it's time for penalty enforcement
+    pub fn should_enforce_penalties(&self, current_time: i64) -> bool {
+        if !self.auto_penalty_enabled {
+            return false;
+        }
+        
+        for &scheduled_time in &self.penalty_schedule {
+            if current_time >= scheduled_time && self.last_penalty_check < scheduled_time {
+                return true;
+            }
+        }
+        
+        false
+    }
+}
+
+/// Event log for automation actions
+#[account]
+pub struct AutomationEvent {
+    /// The circle this event relates to
+    pub circle: Pubkey,
+    /// Type of automation event
+    pub event_type: AutomationEventType,
+    /// Timestamp when event occurred
+    pub timestamp: i64,
+    /// Event details/data
+    pub data: Vec<u8>,
+    /// Whether event was successful
+    pub success: bool,
+    /// Error message if failed
+    pub error_message: Option<String>,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum AutomationEventType {
+    ContributionCollection,
+    PayoutDistribution, 
+    PenaltyEnforcement,
+    ScheduleUpdate,
+}
+
+impl AutomationEvent {
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // circle
+        1 + // event_type
+        8 + // timestamp
+        4 + 100 + // data vec (max 100 bytes)
+        1 + // success
+        4 + 100 + // error_message (max 100 chars)
+        1 + // bump
+        50; // padding
+}
