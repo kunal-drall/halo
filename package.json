@@ -15,6 +15,7 @@
     "deploy:devnet": "anchor deploy --provider.cluster devnet",
     "start:localnet": "solana-test-validator",
     "example": "ts-node app/example.ts",
+    "example:revenue": "ts-node app/revenue-example.ts",
     "example:solend": "ts-node app/solend-simple-example.ts",
     "example:solend-full": "ts-node app/solend-example.ts",
     "example:automation": "ts-node app/automation-example.ts",
