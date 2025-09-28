@@ -162,4 +162,8 @@ pub mod halo_protocol {
     ) -> Result<()> {
         revenue::create_revenue_report(ctx, period_start, period_end)
     }
+
+    pub fn distribute_yield(ctx: Context<DistributeYield>, yield_amount: u64) -> Result<()> {
+        revenue::distribute_yield(ctx, yield_amount)
+    }
 }

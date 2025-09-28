@@ -131,7 +131,46 @@ pub fn collect_management_fees(ctx: Context<CollectManagementFees>) -> Result<()
     Ok(())
 }
 
-/// Create a revenue report for a specific period
+/// Distribute yield with fee collection (for Solend integration)
+pub fn distribute_yield(ctx: Context<DistributeYield>, yield_amount: u64) -> Result<()> {
+    let treasury = &mut ctx.accounts.treasury;
+    let params = &ctx.accounts.revenue_params;
+    
+    require!(yield_amount > 0, HaloError::InvalidContributionAmount);
+    
+    // Calculate yield fee (0.25% by default)
+    let yield_fee = params.calculate_yield_fee(yield_amount)?;
+    let net_yield_amount = yield_amount.checked_sub(yield_fee)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+
+    // Collect yield fee first (if any)
+    if yield_fee > 0 {
+        collect_yield_fee(
+            yield_amount,
+            params,
+            treasury,
+            &ctx.accounts.source_token_account.to_account_info(),
+            &ctx.accounts.treasury_token_account.to_account_info(),
+            &ctx.accounts.authority.to_account_info(),
+            &ctx.accounts.token_program.to_account_info(),
+            None, // No seeds needed for user authority
+        )?;
+    }
+
+    // Transfer remaining yield to recipient
+    let cpi_accounts = Transfer {
+        from: ctx.accounts.source_token_account.to_account_info(),
+        to: ctx.accounts.recipient_token_account.to_account_info(),
+        authority: ctx.accounts.authority.to_account_info(),
+    };
+    let cpi_program = ctx.accounts.token_program.to_account_info();
+    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    token::transfer(cpi_ctx, net_yield_amount)?;
+
+    msg!("Yield of {} distributed (fee: {}, net: {})", 
+         yield_amount, yield_fee, net_yield_amount);
+    Ok(())
+}
 pub fn create_revenue_report(
     ctx: Context<CreateRevenueReport>,
     period_start: i64,
@@ -354,4 +393,37 @@ pub struct CreateRevenueReport<'info> {
     pub authority: Signer<'info>,
     
     pub system_program: Program<'info, System>,
+}
+#[derive(Accounts)]
+#[instruction(yield_amount: u64)]
+pub struct DistributeYield<'info> {
+    #[account(
+        mut,
+        seeds = [b"treasury"],
+        bump = treasury.bump
+    )]
+    pub treasury: Account<'info, Treasury>,
+    
+    #[account(
+        seeds = [b"revenue_params"],
+        bump = revenue_params.bump
+    )]
+    pub revenue_params: Account<'info, RevenueParams>,
+    
+    /// Authority that controls the source tokens (e.g., Solend integration service)
+    pub authority: Signer<'info>,
+    
+    /// Source token account containing yield to distribute
+    #[account(mut)]
+    pub source_token_account: Account<'info, TokenAccount>,
+    
+    /// Recipient token account to receive net yield
+    #[account(mut)]
+    pub recipient_token_account: Account<'info, TokenAccount>,
+    
+    /// Treasury token account to receive fees
+    #[account(mut)]
+    pub treasury_token_account: Account<'info, TokenAccount>,
+    
+    pub token_program: Program<'info, Token>,
 }

@@ -7,6 +7,7 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "test": "anchor test",
+    "test:revenue": "npx mocha --require ts-node/register tests/revenue-module.ts --timeout 120000",
     "test:solend": "npx mocha --require ts-node/register tests/solend-integration.ts --timeout 120000",
     "test:automation": "npx mocha --require ts-node/register tests/automation.ts --timeout 120000",
     "build": "anchor build",
