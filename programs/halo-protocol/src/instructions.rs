@@ -2,7 +2,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::errors::HaloError;
-use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution, TrustScore, TrustTier, SocialProof, AutomationState, CircleAutomation, AutomationEvent, AutomationEventType};
+use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution, TrustScore, TrustTier, SocialProof, AutomationState, CircleAutomation, AutomationEvent, AutomationEventType, Treasury, RevenueParams};
+use crate::revenue;
 
 pub fn initialize_circle(
     ctx: Context<InitializeCircle>,
@@ -206,6 +207,8 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
     let circle = &mut ctx.accounts.circle;
     let recipient_member = &mut ctx.accounts.recipient_member;
     let escrow = &mut ctx.accounts.escrow;
+    let treasury = &mut ctx.accounts.treasury;
+    let revenue_params = &ctx.accounts.revenue_params;
     let clock = Clock::get()?;
 
     require!(circle.status == CircleStatus::Active, HaloError::CircleNotActive);
@@ -224,23 +227,43 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
         monthly_contrib.total_collected
     };
 
-    // Transfer pot to recipient
+    // Calculate distribution fee (0.5% by default)
+    let distribution_fee = revenue_params.calculate_distribution_fee(pot_amount)?;
+    let net_distribution_amount = pot_amount.checked_sub(distribution_fee)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+
+    // Prepare escrow signer seeds
     let circle_key = circle.key();
-    let seeds = &[
+    let escrow_seeds = &[
         b"escrow",
         circle_key.as_ref(),
         &[escrow.bump],
     ];
-    let signer = &[&seeds[..]];
+    let escrow_signer = &[&escrow_seeds[..]];
 
+    // Collect distribution fee first (if any)
+    if distribution_fee > 0 {
+        revenue::collect_distribution_fee(
+            pot_amount,
+            revenue_params,
+            treasury,
+            &ctx.accounts.escrow_token_account.to_account_info(),
+            &ctx.accounts.treasury_token_account.to_account_info(),
+            &escrow.to_account_info(),
+            &ctx.accounts.token_program.to_account_info(),
+            Some(escrow_signer),
+        )?;
+    }
+
+    // Transfer remaining pot to recipient
     let cpi_accounts = Transfer {
         from: ctx.accounts.escrow_token_account.to_account_info(),
         to: ctx.accounts.recipient_token_account.to_account_info(),
         authority: escrow.to_account_info(),
     };
     let cpi_program = ctx.accounts.token_program.to_account_info();
-    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
-    token::transfer(cpi_ctx, pot_amount)?;
+    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, escrow_signer);
+    token::transfer(cpi_ctx, net_distribution_amount)?;
 
     // Update records
     let monthly_contrib = &mut circle.monthly_contributions[current_month as usize];
@@ -256,7 +279,8 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
         // in a separate instruction due to Anchor account constraints
     }
 
-    msg!("Pot of {} distributed to {} for month {}", pot_amount, recipient_member.authority, current_month);
+    msg!("Pot of {} distributed to {} (fee: {}, net: {}) for month {}", 
+         pot_amount, recipient_member.authority, distribution_fee, net_distribution_amount, current_month);
     Ok(())
 }
 
@@ -805,6 +829,19 @@ pub struct DistributePot<'info> {
     )]
     pub escrow: Account<'info, CircleEscrow>,
     
+    #[account(
+        mut,
+        seeds = [b"treasury"],
+        bump = treasury.bump
+    )]
+    pub treasury: Account<'info, Treasury>,
+    
+    #[account(
+        seeds = [b"revenue_params"],
+        bump = revenue_params.bump
+    )]
+    pub revenue_params: Account<'info, RevenueParams>,
+    
     pub authority: Signer<'info>, // Could be circle creator or governance
     
     #[account(mut)]
@@ -812,6 +849,9 @@ pub struct DistributePot<'info> {
     
     #[account(mut)]
     pub escrow_token_account: Account<'info, TokenAccount>,
+    
+    #[account(mut)]
+    pub treasury_token_account: Account<'info, TokenAccount>,
     
     pub token_program: Program<'info, Token>,
 }
