@@ -60,4 +60,14 @@ pub enum HaloError {
     AutomationJobNotFound,
     #[msg("Invalid automation configuration")]
     InvalidAutomationConfig,
+    #[msg("Invalid fee rate")]
+    InvalidFeeRate,
+    #[msg("Treasury not initialized")]
+    TreasuryNotInitialized,
+    #[msg("Unauthorized revenue operation")]
+    UnauthorizedRevenueOperation,
+    #[msg("Revenue collection too frequent")]
+    RevenueCollectionTooFrequent,
+    #[msg("Invalid revenue report period")]
+    InvalidRevenueReportPeriod,
 }
