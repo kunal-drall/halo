@@ -97,6 +97,7 @@ The trust scoring system integrates seamlessly with existing Halo Protocol opera
 
 ```typescript
 import { HaloProtocolClient } from './halo-client';
+import { TrustScoreDashboardService } from './trust-score-dashboard-service';
 
 const client = new HaloProtocolClient(program);
 
@@ -112,15 +113,184 @@ await client.verifySocialProof(userPubkey, verifier, "Twitter", "@username");
 // Update DeFi activity (as oracle)
 await client.updateDefiActivityScore(userPubkey, oracle, 150);
 
-// Get current trust score
-const trustData = await client.getTrustScoreInfo(trustScoreAccount);
-console.log(`Score: ${trustData.score}, Tier: ${client.getTierName(trustData.tier)}`);
+// Get current trust score (dashboard-optimized format)
+const trustData = await client.getDashboardTrustScore(userPubkey);
+console.log(`Score: ${trustData.score}, Tier: ${trustData.tier}`);
 
 // Calculate required stake for joining circle
 const requiredStake = await client.getMinimumStakeRequirement(
   userPubkey, 
   baseContribution
 );
+
+// Dashboard service for frontend integration
+const dashboardService = new TrustScoreDashboardService(client, connection);
+
+// Batch fetch multiple users for leaderboards
+const batchScores = await dashboardService.fetchBatchTrustScores([
+  "User1PublicKey...",
+  "User2PublicKey...",
+  "User3PublicKey..."
+]);
+
+// Get trust score statistics
+const stats = await dashboardService.getTrustScoreStatistics();
+
+// Validate circle eligibility
+const eligibility = await dashboardService.validateCircleEligibility(
+  userAddress,
+  circleId,
+  contributionAmount
+);
+```
+
+## Dashboard API Endpoints
+
+The trust scoring system provides RESTful API endpoints for frontend dashboard integration:
+
+### Individual User Trust Score
+```
+GET /api/trust-score?user=<publicKey>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": "PublicKey...",
+    "score": 675,
+    "tier": "Gold",
+    "stakeMultiplier": 100,
+    "breakdown": {
+      "paymentHistory": {
+        "score": 320,
+        "maxScore": 400,
+        "weight": 40,
+        "percentage": 80
+      },
+      "circleCompletions": {
+        "score": 180,
+        "maxScore": 300,
+        "weight": 30,
+        "percentage": 60
+      },
+      "defiActivity": {
+        "score": 120,
+        "maxScore": 200,
+        "weight": 20,
+        "percentage": 60
+      },
+      "socialProofs": {
+        "score": 55,
+        "maxScore": 100,
+        "weight": 10,
+        "percentage": 55
+      }
+    },
+    "metadata": {
+      "circlesCompleted": 12,
+      "circlesJoined": 18,
+      "totalContributions": "145000",
+      "missedContributions": 3,
+      "socialProofs": [...],
+      "lastUpdated": "1695234567"
+    }
+  }
+}
+```
+
+### Batch Trust Score Queries
+```
+POST /api/trust-score/batch
+```
+
+**Request Body:**
+```json
+{
+  "users": ["PublicKey1...", "PublicKey2...", "PublicKey3..."]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 3,
+  "data": [
+    {
+      "user": "PublicKey1...",
+      "score": 850,
+      "tier": "Platinum",
+      "breakdown": {...}
+    },
+    {
+      "user": "PublicKey2...",
+      "score": 420,
+      "tier": "Silver",
+      "breakdown": {...}
+    },
+    {
+      "user": "PublicKey3...",
+      "score": 680,
+      "tier": "Gold", 
+      "breakdown": {...}
+    }
+  ]
+}
+```
+
+### Trust Score Analytics
+```
+GET /api/trust-score/analytics?period=30d&metric=summary
+```
+
+**Parameters:**
+- `period`: `24h`, `7d`, `30d`, `90d` (default: `30d`)
+- `metric`: `distribution`, `trends`, `summary` (default: `summary`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "period": "30d",
+  "metric": "summary", 
+  "data": {
+    "totalUsers": 15234,
+    "averageScore": 542,
+    "tierDistribution": {
+      "newcomer": { "count": 3458, "percentage": 23 },
+      "silver": { "count": 6821, "percentage": 45 },
+      "gold": { "count": 3947, "percentage": 26 },
+      "platinum": { "count": 1008, "percentage": 6 }
+    },
+    "insights": {
+      "avgPaymentHistory": 78.5,
+      "avgCircleCompletions": 68.2,
+      "avgDefiActivity": 45.3,
+      "avgSocialProofs": 72.1
+    }
+  }
+}
+```
+
+### Custom Analytics Queries
+```
+POST /api/trust-score/analytics/custom
+```
+
+**Request Body:**
+```json
+{
+  "filters": {
+    "tier": "gold",
+    "scoreRange": [500, 749],
+    "dateRange": ["2024-01-01", "2024-12-31"],
+    "metrics": ["paymentHistory", "circleCompletions"]
+  },
+  "groupBy": "tier",
+  "orderBy": "score"
+}
 ```
 
 ## Benefits
@@ -156,6 +326,16 @@ const requiredStake = await client.getMinimumStakeRequirement(
 ```bash
 # Run the trust scoring demonstration
 npm run ts-node app/trust-scoring-demo.ts
+
+# Run the dashboard API demonstration
+node app/simple-trust-score-demo.ts
+
+# Test individual API endpoints (requires Next.js server)
+npm run dev
+# Then visit:
+# GET /api/trust-score?user=<publicKey>
+# POST /api/trust-score/batch
+# GET /api/trust-score/analytics
 ```
 
-This demonstrates the complete trust scoring workflow from newcomer to experienced user, showing how stake requirements adjust dynamically based on trust levels.
+This demonstrates the complete trust scoring workflow from newcomer to experienced user, showing how stake requirements adjust dynamically based on trust levels, and how dashboard APIs provide queryable endpoints for frontend integration.
