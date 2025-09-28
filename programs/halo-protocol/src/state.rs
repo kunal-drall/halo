@@ -511,3 +511,145 @@ impl AutomationEvent {
         1 + // bump
         50; // padding
 }
+
+// Revenue Module Structures
+
+/// Global treasury account that holds all protocol fees
+#[account]
+pub struct Treasury {
+    /// Authority that can manage treasury (should be governance)
+    pub authority: Pubkey,
+    /// Total fees collected across all categories
+    pub total_fees_collected: u64,
+    /// Fees from loan distributions (0.5%)
+    pub distribution_fees: u64,
+    /// Fees from interest yield (0.25%)
+    pub yield_fees: u64,
+    /// Management fees from staked amounts (2% annual)
+    pub management_fees: u64,
+    /// Last time management fees were collected
+    pub last_management_fee_collection: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl Treasury {
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // authority
+        8 + // total_fees_collected
+        8 + // distribution_fees
+        8 + // yield_fees
+        8 + // management_fees
+        8 + // last_management_fee_collection
+        1 + // bump
+        100; // padding
+}
+
+/// Revenue parameters that can be adjusted by governance
+#[account]
+pub struct RevenueParams {
+    /// Authority that can update parameters (governance)
+    pub authority: Pubkey,
+    /// Distribution fee rate in basis points (default: 50 = 0.5%)
+    pub distribution_fee_rate: u16,
+    /// Yield fee rate in basis points (default: 25 = 0.25%)
+    pub yield_fee_rate: u16,
+    /// Annual management fee rate in basis points (default: 200 = 2%)
+    pub management_fee_rate: u16,
+    /// Minimum interval between management fee collections (seconds)
+    pub management_fee_interval: i64,
+    /// Last time parameters were updated
+    pub last_updated: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl RevenueParams {
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // authority
+        2 + // distribution_fee_rate
+        2 + // yield_fee_rate
+        2 + // management_fee_rate
+        8 + // management_fee_interval
+        8 + // last_updated
+        1 + // bump
+        50; // padding
+    
+    /// Default revenue parameters
+    pub fn default_params() -> (u16, u16, u16, i64) {
+        (50, 25, 200, 30 * 24 * 60 * 60) // 0.5%, 0.25%, 2%, 30 days interval
+    }
+    
+    /// Calculate distribution fee amount
+    pub fn calculate_distribution_fee(&self, amount: u64) -> Result<u64> {
+        amount
+            .checked_mul(self.distribution_fee_rate as u64)
+            .and_then(|result| result.checked_div(10000))
+            .ok_or_else(|| anchor_lang::error!(crate::errors::HaloError::ArithmeticOverflow))
+    }
+    
+    /// Calculate yield fee amount
+    pub fn calculate_yield_fee(&self, amount: u64) -> Result<u64> {
+        amount
+            .checked_mul(self.yield_fee_rate as u64)
+            .and_then(|result| result.checked_div(10000))
+            .ok_or_else(|| anchor_lang::error!(crate::errors::HaloError::ArithmeticOverflow))
+    }
+    
+    /// Calculate annual management fee for a given stake amount and time period
+    pub fn calculate_management_fee(&self, stake_amount: u64, time_elapsed_seconds: i64) -> Result<u64> {
+        let annual_fee = stake_amount
+            .checked_mul(self.management_fee_rate as u64)
+            .and_then(|result| result.checked_div(10000))
+            .ok_or_else(|| anchor_lang::error!(crate::errors::HaloError::ArithmeticOverflow))?;
+        
+        let seconds_in_year = 365 * 24 * 60 * 60;
+        annual_fee
+            .checked_mul(time_elapsed_seconds as u64)
+            .and_then(|result| result.checked_div(seconds_in_year))
+            .ok_or_else(|| anchor_lang::error!(crate::errors::HaloError::ArithmeticOverflow))
+    }
+}
+
+/// Revenue report structure for tracking and analytics
+#[account]
+pub struct RevenueReport {
+    /// Period start timestamp
+    pub period_start: i64,
+    /// Period end timestamp
+    pub period_end: i64,
+    /// Total fees collected in this period
+    pub total_period_fees: u64,
+    /// Distribution fees in this period
+    pub period_distribution_fees: u64,
+    /// Yield fees in this period
+    pub period_yield_fees: u64,
+    /// Management fees in this period
+    pub period_management_fees: u64,
+    /// Number of circles active in this period
+    pub active_circles: u32,
+    /// Total amount distributed in this period
+    pub total_distributions: u64,
+    /// Total yield generated in this period
+    pub total_yield: u64,
+    /// Total stake amount subject to management fees
+    pub total_managed_stake: u64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl RevenueReport {
+    pub const SPACE: usize = 8 + // discriminator
+        8 + // period_start
+        8 + // period_end
+        8 + // total_period_fees
+        8 + // period_distribution_fees
+        8 + // period_yield_fees
+        8 + // period_management_fees
+        4 + // active_circles
+        8 + // total_distributions
+        8 + // total_yield
+        8 + // total_managed_stake
+        1 + // bump
+        50; // padding
+}
