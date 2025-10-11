@@ -92,4 +92,24 @@ pub enum HaloError {
     InvalidAuctionDuration,
     #[msg("No pot available for auction")]
     NoPotAvailableForAuction,
+    #[msg("Automation is disabled")]
+    AutomationDisabled,
+    #[msg("Automation not scheduled at this time")]
+    AutomationNotScheduled,
+    #[msg("Automation check too frequent")]
+    AutomationTooFrequent,
+    #[msg("Automation job not found")]
+    AutomationJobNotFound,
+    #[msg("Invalid automation configuration")]
+    InvalidAutomationConfig,
+    #[msg("Invalid fee rate")]
+    InvalidFeeRate,
+    #[msg("Treasury not initialized")]
+    TreasuryNotInitialized,
+    #[msg("Unauthorized revenue operation")]
+    UnauthorizedRevenueOperation,
+    #[msg("Revenue collection too frequent")]
+    RevenueCollectionTooFrequent,
+    #[msg("Invalid revenue report period")]
+    InvalidRevenueReportPeriod,
 }

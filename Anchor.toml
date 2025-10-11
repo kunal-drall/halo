@@ -2,6 +2,9 @@
 seeds = false
 skip-lint = false
 
+[toolchain]
+anchor_version = "0.28.0"
+
 [programs.localnet]
 halo_protocol = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 
