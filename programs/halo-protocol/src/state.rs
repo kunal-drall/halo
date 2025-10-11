@@ -303,7 +303,356 @@ impl TrustScore {
     }
 }
 
-// Governance and Auction System
+// Switchboard Oracle Automation Structures
+
+/// Global automation configuration and state
+#[account]
+pub struct AutomationState {
+    /// Authority that can update automation settings
+    pub authority: Pubkey,
+    /// Switchboard queue account for automation jobs
+    pub switchboard_queue: Pubkey,
+    /// Automation enabled flag
+    pub enabled: bool,
+    /// Number of active automation jobs
+    pub active_jobs: u32,
+    /// Minimum interval between automation checks (in seconds)
+    pub min_interval: i64,
+    /// Last global automation check timestamp
+    pub last_check: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl AutomationState {
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // authority
+        32 + // switchboard_queue
+        1 + // enabled
+        4 + // active_jobs
+        8 + // min_interval
+        8 + // last_check
+        1 + // bump
+        50; // padding
+}
+
+/// Per-circle automation configuration
+#[account]
+pub struct CircleAutomation {
+    /// The circle this automation belongs to
+    pub circle: Pubkey,
+    /// Switchboard job account for this circle
+    pub job_account: Pubkey,
+    /// Whether contribution collection is automated
+    pub auto_collect_enabled: bool,
+    /// Whether payout distribution is automated
+    pub auto_distribute_enabled: bool,
+    /// Whether penalty enforcement is automated
+    pub auto_penalty_enabled: bool,
+    /// Monthly contribution collection schedule (unix timestamp)
+    pub contribution_schedule: Vec<i64>,
+    /// Distribution schedule (unix timestamp)
+    pub distribution_schedule: Vec<i64>,
+    /// Penalty check schedule (unix timestamp)
+    pub penalty_schedule: Vec<i64>,
+    /// Last contribution collection timestamp
+    pub last_contribution_check: i64,
+    /// Last distribution timestamp
+    pub last_distribution_check: i64,
+    /// Last penalty check timestamp
+    pub last_penalty_check: i64,
+    /// Circle created at timestamp (for calculations)
+    pub circle_created_at: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl CircleAutomation {
+    pub const MAX_SCHEDULE_ITEMS: usize = 36; // 3 years worth of monthly events
+    
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // circle
+        32 + // job_account
+        1 + // auto_collect_enabled
+        1 + // auto_distribute_enabled  
+        1 + // auto_penalty_enabled
+        4 + (8 * Self::MAX_SCHEDULE_ITEMS) + // contribution_schedule
+        4 + (8 * Self::MAX_SCHEDULE_ITEMS) + // distribution_schedule
+        4 + (8 * Self::MAX_SCHEDULE_ITEMS) + // penalty_schedule
+        8 + // last_contribution_check
+        8 + // last_distribution_check
+        8 + // last_penalty_check
+        8 + // circle_created_at
+        1 + // bump
+        100; // padding
+    
+    /// Generate contribution schedule for a circle
+    pub fn generate_contribution_schedule(created_at: i64, duration_months: u8) -> Vec<i64> {
+        let mut schedule = Vec::new();
+        let month_duration = 30 * 24 * 60 * 60; // 30 days in seconds
+        
+        for month in 0..duration_months {
+            let contribution_time = created_at + (month as i64 * month_duration);
+            schedule.push(contribution_time);
+        }
+        
+        schedule
+    }
+    
+    /// Generate distribution schedule for a circle
+    pub fn generate_distribution_schedule(created_at: i64, duration_months: u8) -> Vec<i64> {
+        let mut schedule = Vec::new();
+        let month_duration = 30 * 24 * 60 * 60;
+        let distribution_offset = 25 * 24 * 60 * 60; // 25 days into each month
+        
+        for month in 0..duration_months {
+            let distribution_time = created_at + (month as i64 * month_duration) + distribution_offset;
+            schedule.push(distribution_time);
+        }
+        
+        schedule
+    }
+    
+    /// Generate penalty check schedule for a circle  
+    pub fn generate_penalty_schedule(created_at: i64, duration_months: u8) -> Vec<i64> {
+        let mut schedule = Vec::new();
+        let month_duration = 30 * 24 * 60 * 60;
+        let penalty_offset = 27 * 24 * 60 * 60; // 27 days into each month
+        
+        for month in 0..duration_months {
+            let penalty_time = created_at + (month as i64 * month_duration) + penalty_offset;
+            schedule.push(penalty_time);
+        }
+        
+        schedule
+    }
+    
+    /// Check if it's time for contribution collection
+    pub fn should_collect_contributions(&self, current_time: i64) -> bool {
+        if !self.auto_collect_enabled {
+            return false;
+        }
+        
+        for &scheduled_time in &self.contribution_schedule {
+            if current_time >= scheduled_time && self.last_contribution_check < scheduled_time {
+                return true;
+            }
+        }
+        
+        false
+    }
+    
+    /// Check if it's time for payout distribution
+    pub fn should_distribute_payouts(&self, current_time: i64) -> bool {
+        if !self.auto_distribute_enabled {
+            return false;
+        }
+        
+        for &scheduled_time in &self.distribution_schedule {
+            if current_time >= scheduled_time && self.last_distribution_check < scheduled_time {
+                return true;
+            }
+        }
+        
+        false
+    }
+    
+    /// Check if it's time for penalty enforcement
+    pub fn should_enforce_penalties(&self, current_time: i64) -> bool {
+        if !self.auto_penalty_enabled {
+            return false;
+        }
+        
+        for &scheduled_time in &self.penalty_schedule {
+            if current_time >= scheduled_time && self.last_penalty_check < scheduled_time {
+                return true;
+            }
+        }
+        
+        false
+    }
+}
+
+/// Event log for automation actions
+#[account]
+pub struct AutomationEvent {
+    /// The circle this event relates to
+    pub circle: Pubkey,
+    /// Type of automation event
+    pub event_type: AutomationEventType,
+    /// Timestamp when event occurred
+    pub timestamp: i64,
+    /// Event details/data
+    pub data: Vec<u8>,
+    /// Whether event was successful
+    pub success: bool,
+    /// Error message if failed
+    pub error_message: Option<String>,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum AutomationEventType {
+    ContributionCollection,
+    PayoutDistribution, 
+    PenaltyEnforcement,
+    ScheduleUpdate,
+}
+
+impl AutomationEvent {
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // circle
+        1 + // event_type
+        8 + // timestamp
+        4 + 100 + // data vec (max 100 bytes)
+        1 + // success
+        4 + 100 + // error_message (max 100 chars)
+        1 + // bump
+        50; // padding
+}
+
+// Revenue Module Structures
+
+/// Global treasury account that holds all protocol fees
+#[account]
+pub struct Treasury {
+    /// Authority that can manage treasury (should be governance)
+    pub authority: Pubkey,
+    /// Total fees collected across all categories
+    pub total_fees_collected: u64,
+    /// Fees from loan distributions (0.5%)
+    pub distribution_fees: u64,
+    /// Fees from interest yield (0.25%)
+    pub yield_fees: u64,
+    /// Management fees from staked amounts (2% annual)
+    pub management_fees: u64,
+    /// Last time management fees were collected
+    pub last_management_fee_collection: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl Treasury {
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // authority
+        8 + // total_fees_collected
+        8 + // distribution_fees
+        8 + // yield_fees
+        8 + // management_fees
+        8 + // last_management_fee_collection
+        1 + // bump
+        100; // padding
+}
+
+/// Revenue parameters that can be adjusted by governance
+#[account]
+pub struct RevenueParams {
+    /// Authority that can update parameters (governance)
+    pub authority: Pubkey,
+    /// Distribution fee rate in basis points (default: 50 = 0.5%)
+    pub distribution_fee_rate: u16,
+    /// Yield fee rate in basis points (default: 25 = 0.25%)
+    pub yield_fee_rate: u16,
+    /// Annual management fee rate in basis points (default: 200 = 2%)
+    pub management_fee_rate: u16,
+    /// Minimum interval between management fee collections (seconds)
+    pub management_fee_interval: i64,
+    /// Last time parameters were updated
+    pub last_updated: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl RevenueParams {
+    pub const SPACE: usize = 8 + // discriminator
+        32 + // authority
+        2 + // distribution_fee_rate
+        2 + // yield_fee_rate
+        2 + // management_fee_rate
+        8 + // management_fee_interval
+        8 + // last_updated
+        1 + // bump
+        50; // padding
+    
+    /// Default revenue parameters
+    pub fn default_params() -> (u16, u16, u16, i64) {
+        (50, 25, 200, 30 * 24 * 60 * 60) // 0.5%, 0.25%, 2%, 30 days interval
+    }
+    
+    /// Calculate distribution fee amount
+    pub fn calculate_distribution_fee(&self, amount: u64) -> Result<u64> {
+        amount
+            .checked_mul(self.distribution_fee_rate as u64)
+            .and_then(|result| result.checked_div(10000))
+            .ok_or_else(|| anchor_lang::error!(crate::errors::HaloError::ArithmeticOverflow))
+    }
+    
+    /// Calculate yield fee amount
+    pub fn calculate_yield_fee(&self, amount: u64) -> Result<u64> {
+        amount
+            .checked_mul(self.yield_fee_rate as u64)
+            .and_then(|result| result.checked_div(10000))
+            .ok_or_else(|| anchor_lang::error!(crate::errors::HaloError::ArithmeticOverflow))
+    }
+    
+    /// Calculate annual management fee for a given stake amount and time period
+    pub fn calculate_management_fee(&self, stake_amount: u64, time_elapsed_seconds: i64) -> Result<u64> {
+        let annual_fee = stake_amount
+            .checked_mul(self.management_fee_rate as u64)
+            .and_then(|result| result.checked_div(10000))
+            .ok_or_else(|| anchor_lang::error!(crate::errors::HaloError::ArithmeticOverflow))?;
+        
+        let seconds_in_year = 365 * 24 * 60 * 60;
+        annual_fee
+            .checked_mul(time_elapsed_seconds as u64)
+            .and_then(|result| result.checked_div(seconds_in_year))
+            .ok_or_else(|| anchor_lang::error!(crate::errors::HaloError::ArithmeticOverflow))
+    }
+}
+
+/// Revenue report structure for tracking and analytics
+#[account]
+pub struct RevenueReport {
+    /// Period start timestamp
+    pub period_start: i64,
+    /// Period end timestamp
+    pub period_end: i64,
+    /// Total fees collected in this period
+    pub total_period_fees: u64,
+    /// Distribution fees in this period
+    pub period_distribution_fees: u64,
+    /// Yield fees in this period
+    pub period_yield_fees: u64,
+    /// Management fees in this period
+    pub period_management_fees: u64,
+    /// Number of circles active in this period
+    pub active_circles: u32,
+    /// Total amount distributed in this period
+    pub total_distributions: u64,
+    /// Total yield generated in this period
+    pub total_yield: u64,
+    /// Total stake amount subject to management fees
+    pub total_managed_stake: u64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl RevenueReport {
+    pub const SPACE: usize = 8 + // discriminator
+        8 + // period_start
+        8 + // period_end
+        8 + // total_period_fees
+        8 + // period_distribution_fees
+        8 + // period_yield_fees
+        8 + // period_management_fees
+        4 + // active_circles
+        8 + // total_distributions
+        8 + // total_yield
+        8 + // total_managed_stake
+        1 + // bump
+        50; // padding
+}// Governance and Auction System
 
 #[account]
 pub struct GovernanceProposal {

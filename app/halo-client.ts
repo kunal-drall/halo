@@ -479,6 +479,516 @@ export class HaloProtocolClient {
   }
 
   // =============================================================================
+  // Dashboard Query Methods for Frontend Integration
+  // =============================================================================
+
+  /**
+   * Get comprehensive trust score data formatted for dashboard consumption
+   */
+  async getDashboardTrustScore(userPublicKey: PublicKey) {
+    try {
+      const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
+      const trustScoreData = await this.getTrustScoreInfo(trustScoreAccount);
+
+      // Format data for dashboard
+      const dashboardData = {
+        user: userPublicKey.toString(),
+        score: trustScoreData.score,
+        tier: this.getTierName(trustScoreData.tier),
+        stakeMultiplier: this.getTierStakeMultiplier(trustScoreData.tier),
+        breakdown: {
+          paymentHistory: {
+            score: trustScoreData.paymentHistoryScore,
+            maxScore: 400,
+            weight: 40,
+            percentage: Math.round((trustScoreData.paymentHistoryScore / 400) * 100)
+          },
+          circleCompletions: {
+            score: trustScoreData.completionScore,
+            maxScore: 300,
+            weight: 30,
+            percentage: Math.round((trustScoreData.completionScore / 300) * 100)
+          },
+          defiActivity: {
+            score: trustScoreData.defiActivityScore,
+            maxScore: 200,
+            weight: 20,
+            percentage: Math.round((trustScoreData.defiActivityScore / 200) * 100)
+          },
+          socialProofs: {
+            score: trustScoreData.socialProofScore,
+            maxScore: 100,
+            weight: 10,
+            percentage: Math.round((trustScoreData.socialProofScore / 100) * 100)
+          }
+        },
+        metadata: {
+          circlesCompleted: trustScoreData.circlesCompleted,
+          circlesJoined: trustScoreData.circlesJoined,
+          totalContributions: trustScoreData.totalContributions.toString(),
+          missedContributions: trustScoreData.missedContributions,
+          socialProofs: trustScoreData.socialProofs.map(proof => ({
+            type: proof.proofType,
+            identifier: proof.identifier,
+            verified: proof.verified,
+            timestamp: proof.timestamp.toString()
+          })),
+          lastUpdated: trustScoreData.lastUpdated.toString()
+        }
+      };
+
+      return dashboardData;
+    } catch (error) {
+      console.error('Error fetching dashboard trust score:', error);
+      throw new Error(`Failed to fetch trust score for user ${userPublicKey.toString()}: ${error}`);
+    }
+  }
+
+  /**
+   * Get trust scores for multiple users (batch query)
+   * Useful for displaying leaderboards, circle member lists, etc.
+   */
+  async getBatchTrustScores(userPublicKeys: PublicKey[], includeErrors = false) {
+    const results = [];
+
+    for (const publicKey of userPublicKeys) {
+      try {
+        const trustScore = await this.getDashboardTrustScore(publicKey);
+        results.push(trustScore);
+      } catch (error) {
+        if (includeErrors) {
+          results.push({
+            user: publicKey.toString(),
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+        // If not including errors, just skip failed ones
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get trust score rankings/leaderboard
+   * Returns top users by score, with optional filtering by tier
+   */
+  async getTrustScoreLeaderboard(limit = 50, tier?: string, circleId?: PublicKey) {
+    // Note: This would require indexing in production
+    // For now, we'll return a mock implementation
+    throw new Error('Leaderboard functionality requires blockchain indexing service');
+  }
+
+  /**
+   * Get trust score analytics for dashboard insights
+   */
+  async getTrustScoreAnalytics(period = '30d') {
+    // Note: This would require historical data indexing in production
+    // For now, we'll return a mock implementation
+    throw new Error('Analytics functionality requires historical data indexing service');
+  }
+
+  /**
+   * Validate if a user meets minimum trust requirements for joining a circle
+   */
+  async validateCircleEligibility(
+    userPublicKey: PublicKey, 
+    circleAccount: PublicKey,
+    requiredContributionAmount: number
+  ) {
+    try {
+      const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
+      const trustScore = await this.getTrustScoreInfo(trustScoreAccount);
+      const circle = await this.program.account.circle.fetch(circleAccount);
+
+      const requiredStake = await this.getMinimumStakeRequirement(
+        userPublicKey, 
+        requiredContributionAmount
+      );
+
+      return {
+        eligible: true, // Basic check - could add more sophisticated rules
+        userScore: trustScore.score,
+        userTier: this.getTierName(trustScore.tier),
+        requiredStake,
+        stakeMultiplier: this.getTierStakeMultiplier(trustScore.tier),
+        recommendations: this.generateEligibilityRecommendations(trustScore)
+      };
+    } catch (error) {
+      // User doesn't have trust score yet
+      return {
+        eligible: true, // Allow newcomers
+        userScore: 0,
+        userTier: 'Newcomer',
+        requiredStake: requiredContributionAmount * 2, // 2x for newcomers
+        stakeMultiplier: 200,
+        recommendations: [
+          'Complete trust score initialization',
+          'Add and verify social proofs',
+          'Consider starting with smaller circles'
+        ]
+      };
+    }
+  }
+
+  /**
+   * Generate recommendations for improving trust score
+   */
+  private generateEligibilityRecommendations(trustScore: any): string[] {
+    const recommendations = [];
+
+    if (trustScore.paymentHistoryScore < 200) {
+      recommendations.push('Maintain consistent payment history in circles');
+    }
+
+    if (trustScore.completionScore < 150) {
+      recommendations.push('Complete more circles to improve completion score');
+    }
+
+    if (trustScore.defiActivityScore < 100) {
+      recommendations.push('Increase DeFi activity through Solend lending/borrowing');
+    }
+
+    if (trustScore.socialProofScore < 50) {
+      recommendations.push('Add and verify more social proof credentials');
+    }
+
+    if (trustScore.score >= 750) {
+      recommendations.push('Excellent trust score! You qualify for premium benefits');
+    }
+
+    return recommendations;
+  }
+
+  // =============================================================================
+  // Automation Methods  
+  // =============================================================================
+
+  /**
+   * Get automation state PDA
+   */
+  getAutomationStatePDA(): PublicKey {
+    const [automationStateAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("automation_state")],
+      this.program.programId
+    );
+    return automationStateAccount;
+  }
+
+  /**
+   * Get circle automation PDA
+   */
+  getCircleAutomationPDA(circleAccount: PublicKey): PublicKey {
+    const [circleAutomationAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("circle_automation"), circleAccount.toBuffer()],
+      this.program.programId
+    );
+    return circleAutomationAccount;
+  }
+
+  /**
+   * Get automation event PDA
+   */
+  getAutomationEventPDA(circleAccount: PublicKey, timestamp: number): PublicKey {
+    const [automationEventAccount] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("automation_event"),
+        circleAccount.toBuffer(),
+        Buffer.from(timestamp.toString())
+      ],
+      this.program.programId
+    );
+    return automationEventAccount;
+  }
+
+  /**
+   * Initialize global automation state
+   */
+  async initializeAutomationState(
+    authority: anchor.web3.Keypair,
+    switchboardQueue: PublicKey,
+    minInterval: number
+  ) {
+    const automationStateAccount = this.getAutomationStatePDA();
+
+    const tx = await this.program.methods
+      .initializeAutomationState(new anchor.BN(minInterval))
+      .accounts({
+        automationState: automationStateAccount,
+        switchboardQueue: switchboardQueue,
+        authority: authority.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc();
+
+    return { tx, automationStateAccount };
+  }
+
+  /**
+   * Setup automation for a circle
+   */
+  async setupCircleAutomation(
+    circleAccount: PublicKey,
+    authority: anchor.web3.Keypair,
+    switchboardJob: PublicKey,
+    autoCollect: boolean = true,
+    autoDistribute: boolean = true,
+    autoPenalty: boolean = true
+  ) {
+    const automationStateAccount = this.getAutomationStatePDA();
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+
+    const tx = await this.program.methods
+      .setupCircleAutomation(autoCollect, autoDistribute, autoPenalty)
+      .accounts({
+        circleAutomation: circleAutomationAccount,
+        automationState: automationStateAccount,
+        circle: circleAccount,
+        switchboardJob: switchboardJob,
+        authority: authority.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc();
+
+    return { tx, circleAutomationAccount };
+  }
+
+  /**
+   * Trigger automated contribution collection
+   */
+  async triggerAutomatedContributionCollection(
+    circleAccount: PublicKey,
+    payer: anchor.web3.Keypair
+  ) {
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+    const timestamp = Date.now();
+    const automationEventAccount = this.getAutomationEventPDA(circleAccount, timestamp);
+
+    const tx = await this.program.methods
+      .automatedContributionCollection()
+      .accounts({
+        circleAutomation: circleAutomationAccount,
+        automationEvent: automationEventAccount,
+        payer: payer.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([payer])
+      .rpc();
+
+    return { tx, automationEventAccount };
+  }
+
+  /**
+   * Trigger automated payout distribution
+   */
+  async triggerAutomatedPayoutDistribution(
+    circleAccount: PublicKey,
+    recipient: PublicKey,
+    distributePotAccounts: any, // DistributePot account struct
+    payer: anchor.web3.Keypair
+  ) {
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+    const timestamp = Date.now();
+    const automationEventAccount = this.getAutomationEventPDA(circleAccount, timestamp);
+
+    const tx = await this.program.methods
+      .automatedPayoutDistribution(recipient)
+      .accounts({
+        circleAutomation: circleAutomationAccount,
+        automationEvent: automationEventAccount,
+        distributePotAccounts: distributePotAccounts,
+        payer: payer.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([payer])
+      .rpc();
+
+    return { tx, automationEventAccount };
+  }
+
+  /**
+   * Trigger automated penalty enforcement
+   */
+  async triggerAutomatedPenaltyEnforcement(
+    circleAccount: PublicKey,
+    payer: anchor.web3.Keypair
+  ) {
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+    const timestamp = Date.now();
+    const automationEventAccount = this.getAutomationEventPDA(circleAccount, timestamp);
+
+    const tx = await this.program.methods
+      .automatedPenaltyEnforcement()
+      .accounts({
+        circleAutomation: circleAutomationAccount,
+        circle: circleAccount,
+        automationEvent: automationEventAccount,
+        payer: payer.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([payer])
+      .rpc();
+
+    return { tx, automationEventAccount };
+  }
+
+  /**
+   * Update automation settings
+   */
+  async updateAutomationSettings(
+    authority: anchor.web3.Keypair,
+    enabled: boolean,
+    minInterval?: number
+  ) {
+    const automationStateAccount = this.getAutomationStatePDA();
+
+    const tx = await this.program.methods
+      .updateAutomationSettings(enabled, minInterval ? new anchor.BN(minInterval) : null)
+      .accounts({
+        automationState: automationStateAccount,
+        authority: authority.publicKey,
+      })
+      .signers([authority])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Execute Switchboard automation callback
+   */
+  async executeSwitchboardCallback(
+    switchboardFeed: PublicKey,
+    payer: anchor.web3.Keypair
+  ) {
+    const automationStateAccount = this.getAutomationStatePDA();
+
+    const tx = await this.program.methods
+      .switchboardAutomationCallback()
+      .accounts({
+        automationState: automationStateAccount,
+        switchboardFeed: switchboardFeed,
+      })
+      .signers([payer])
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Get automation state information
+   */
+  async getAutomationState() {
+    const automationStateAccount = this.getAutomationStatePDA();
+    return await this.program.account.automationState.fetch(automationStateAccount);
+  }
+
+  /**
+   * Get circle automation information
+   */
+  async getCircleAutomation(circleAccount: PublicKey) {
+    const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
+    return await this.program.account.circleAutomation.fetch(circleAutomationAccount);
+  }
+
+  /**
+   * Get automation event information
+   */
+  async getAutomationEvent(automationEventAccount: PublicKey) {
+    return await this.program.account.automationEvent.fetch(automationEventAccount);
+  }
+
+  /**
+   * Check if it's time for contribution collection
+   */
+  async isTimeForContributionCollection(circleAccount: PublicKey): Promise<boolean> {
+    try {
+      const automation = await this.getCircleAutomation(circleAccount);
+      const currentTime = Math.floor(Date.now() / 1000);
+      
+      return automation.autoCollectEnabled && 
+             automation.contributionSchedule.some((scheduledTime: any) => 
+               currentTime >= scheduledTime.toNumber() && 
+               automation.lastContributionCheck.toNumber() < scheduledTime.toNumber()
+             );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Check if it's time for payout distribution
+   */
+  async isTimeForPayoutDistribution(circleAccount: PublicKey): Promise<boolean> {
+    try {
+      const automation = await this.getCircleAutomation(circleAccount);
+      const currentTime = Math.floor(Date.now() / 1000);
+      
+      return automation.autoDistributeEnabled && 
+             automation.distributionSchedule.some((scheduledTime: any) => 
+               currentTime >= scheduledTime.toNumber() && 
+               automation.lastDistributionCheck.toNumber() < scheduledTime.toNumber()
+             );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Check if it's time for penalty enforcement
+   */
+  async isTimeForPenaltyEnforcement(circleAccount: PublicKey): Promise<boolean> {
+    try {
+      const automation = await this.getCircleAutomation(circleAccount);
+      const currentTime = Math.floor(Date.now() / 1000);
+      
+      return automation.autoPenaltyEnabled && 
+             automation.penaltySchedule.some((scheduledTime: any) => 
+               currentTime >= scheduledTime.toNumber() && 
+               automation.lastPenaltyCheck.toNumber() < scheduledTime.toNumber()
+             );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get next scheduled automation events for a circle
+   */
+  async getNextAutomationEvents(circleAccount: PublicKey) {
+    try {
+      const automation = await this.getCircleAutomation(circleAccount);
+      const currentTime = Math.floor(Date.now() / 1000);
+
+      const nextContribution = automation.contributionSchedule
+        .map((time: any) => time.toNumber())
+        .find((time: number) => time > currentTime);
+
+      const nextDistribution = automation.distributionSchedule
+        .map((time: any) => time.toNumber())
+        .find((time: number) => time > currentTime);
+
+      const nextPenalty = automation.penaltySchedule
+        .map((time: any) => time.toNumber())
+        .find((time: number) => time > currentTime);
+
+      return {
+        nextContribution: nextContribution || null,
+        nextDistribution: nextDistribution || null,
+        nextPenalty: nextPenalty || null,
+      };
+    } catch (error) {
+      return {
+        nextContribution: null,
+        nextDistribution: null,
+        nextPenalty: null,
+      };
+    }
+  }
+
+  // =============================================================================
   // Solend Integration Methods
   // =============================================================================
 

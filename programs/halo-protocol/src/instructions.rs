@@ -2,7 +2,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::errors::HaloError;
-use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution, TrustScore, TrustTier, SocialProof, GovernanceProposal, Vote, Auction, Bid, ProposalType, ProposalStatus, AuctionStatus};
+use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution, TrustScore, TrustTier, SocialProof, AutomationState, CircleAutomation, AutomationEvent, AutomationEventType, Treasury, RevenueParams};
+use crate::revenue;
 
 pub fn initialize_circle(
     ctx: Context<InitializeCircle>,
@@ -32,14 +33,14 @@ pub fn initialize_circle(
     circle.members = Vec::new();
     circle.monthly_contributions = Vec::new();
     circle.total_pot = 0;
-    circle.bump = ctx.bumps.circle;
+    circle.bump = *ctx.bumps.get("circle").unwrap();
 
     // Initialize escrow
     let escrow = &mut ctx.accounts.escrow;
     escrow.circle = circle.key();
     escrow.total_amount = 0;
     escrow.monthly_pots = vec![0; duration_months as usize];
-    escrow.bump = ctx.bumps.escrow;
+    escrow.bump = *ctx.bumps.get("escrow").unwrap();
 
     msg!("Circle initialized with ID: {}", circle.id);
     Ok(())
@@ -94,7 +95,7 @@ pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
     member_account.trust_score = trust_score;
     member_account.trust_tier = trust_tier;
     member_account.contributions_missed = 0;
-    member_account.bump = ctx.bumps.member;
+    member_account.bump = *ctx.bumps.get("member").unwrap();
 
     // Add member to circle
     circle.members.push(ctx.accounts.member_authority.key());
@@ -206,6 +207,8 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
     let circle = &mut ctx.accounts.circle;
     let recipient_member = &mut ctx.accounts.recipient_member;
     let escrow = &mut ctx.accounts.escrow;
+    let treasury = &mut ctx.accounts.treasury;
+    let revenue_params = &ctx.accounts.revenue_params;
     let clock = Clock::get()?;
 
     require!(circle.status == CircleStatus::Active, HaloError::CircleNotActive);
@@ -224,23 +227,43 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
         monthly_contrib.total_collected
     };
 
-    // Transfer pot to recipient
+    // Calculate distribution fee (0.5% by default)
+    let distribution_fee = revenue_params.calculate_distribution_fee(pot_amount)?;
+    let net_distribution_amount = pot_amount.checked_sub(distribution_fee)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+
+    // Prepare escrow signer seeds
     let circle_key = circle.key();
-    let seeds = &[
+    let escrow_seeds = &[
         b"escrow",
         circle_key.as_ref(),
         &[escrow.bump],
     ];
-    let signer = &[&seeds[..]];
+    let escrow_signer = &[&escrow_seeds[..]];
 
+    // Collect distribution fee first (if any)
+    if distribution_fee > 0 {
+        revenue::collect_distribution_fee(
+            pot_amount,
+            revenue_params,
+            treasury,
+            &ctx.accounts.escrow_token_account.to_account_info(),
+            &ctx.accounts.treasury_token_account.to_account_info(),
+            &escrow.to_account_info(),
+            &ctx.accounts.token_program.to_account_info(),
+            Some(escrow_signer),
+        )?;
+    }
+
+    // Transfer remaining pot to recipient
     let cpi_accounts = Transfer {
         from: ctx.accounts.escrow_token_account.to_account_info(),
         to: ctx.accounts.recipient_token_account.to_account_info(),
         authority: escrow.to_account_info(),
     };
     let cpi_program = ctx.accounts.token_program.to_account_info();
-    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
-    token::transfer(cpi_ctx, pot_amount)?;
+    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, escrow_signer);
+    token::transfer(cpi_ctx, net_distribution_amount)?;
 
     // Update records
     let monthly_contrib = &mut circle.monthly_contributions[current_month as usize];
@@ -256,7 +279,8 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
         // in a separate instruction due to Anchor account constraints
     }
 
-    msg!("Pot of {} distributed to {} for month {}", pot_amount, recipient_member.authority, current_month);
+    msg!("Pot of {} distributed to {} (fee: {}, net: {}) for month {}", 
+         pot_amount, recipient_member.authority, distribution_fee, net_distribution_amount, current_month);
     Ok(())
 }
 
@@ -369,7 +393,7 @@ pub fn initialize_trust_score(ctx: Context<InitializeTrustScore>) -> Result<()> 
     trust_score.missed_contributions = 0;
     trust_score.social_proofs = Vec::new();
     trust_score.last_updated = clock.unix_timestamp;
-    trust_score.bump = ctx.bumps.trust_score;
+    trust_score.bump = *ctx.bumps.get("trust_score").unwrap();
 
     msg!("Trust score initialized for {}", ctx.accounts.authority.key());
     Ok(())
@@ -473,6 +497,216 @@ pub fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> 
     trust_score.last_updated = clock.unix_timestamp;
     
     msg!("Trust score updated for circle completion: {} points", trust_score.score);
+    Ok(())
+}
+
+// Automation Instructions
+
+pub fn initialize_automation_state(
+    ctx: Context<InitializeAutomationState>,
+    min_interval: i64,
+) -> Result<()> {
+    let automation_state = &mut ctx.accounts.automation_state;
+    
+    automation_state.authority = ctx.accounts.authority.key();
+    automation_state.switchboard_queue = ctx.accounts.switchboard_queue.key();
+    automation_state.enabled = true;
+    automation_state.active_jobs = 0;
+    automation_state.min_interval = min_interval;
+    automation_state.last_check = Clock::get()?.unix_timestamp;
+    automation_state.bump = *ctx.bumps.get("automation_state").unwrap();
+    
+    msg!("Automation state initialized with min_interval: {}", min_interval);
+    Ok(())
+}
+
+pub fn setup_circle_automation(
+    ctx: Context<SetupCircleAutomation>,
+    auto_collect: bool,
+    auto_distribute: bool,
+    auto_penalty: bool,
+) -> Result<()> {
+    let circle_automation = &mut ctx.accounts.circle_automation;
+    let circle = &ctx.accounts.circle;
+    let clock = Clock::get()?;
+    
+    circle_automation.circle = circle.key();
+    circle_automation.job_account = ctx.accounts.switchboard_job.key();
+    circle_automation.auto_collect_enabled = auto_collect;
+    circle_automation.auto_distribute_enabled = auto_distribute;
+    circle_automation.auto_penalty_enabled = auto_penalty;
+    circle_automation.circle_created_at = circle.created_at;
+    
+    // Generate schedules based on circle configuration
+    circle_automation.contribution_schedule = CircleAutomation::generate_contribution_schedule(
+        circle.created_at, 
+        circle.duration_months
+    );
+    circle_automation.distribution_schedule = CircleAutomation::generate_distribution_schedule(
+        circle.created_at, 
+        circle.duration_months
+    );
+    circle_automation.penalty_schedule = CircleAutomation::generate_penalty_schedule(
+        circle.created_at, 
+        circle.duration_months
+    );
+    
+    circle_automation.last_contribution_check = 0;
+    circle_automation.last_distribution_check = 0;
+    circle_automation.last_penalty_check = 0;
+    circle_automation.bump = *ctx.bumps.get("circle_automation").unwrap();
+    
+    // Update global automation state
+    let automation_state = &mut ctx.accounts.automation_state;
+    automation_state.active_jobs += 1;
+    
+    msg!("Circle automation setup for circle: {}", circle.key());
+    Ok(())
+}
+
+pub fn automated_contribution_collection(
+    ctx: Context<AutomatedContributionCollection>,
+) -> Result<()> {
+    let circle_automation = &mut ctx.accounts.circle_automation;
+    let clock = Clock::get()?;
+    
+    // Verify automation is enabled and it's time to collect
+    require!(circle_automation.auto_collect_enabled, HaloError::AutomationDisabled);
+    require!(
+        circle_automation.should_collect_contributions(clock.unix_timestamp),
+        HaloError::AutomationNotScheduled
+    );
+    
+    // Update last check time
+    circle_automation.last_contribution_check = clock.unix_timestamp;
+    
+    // Log automation event
+    let automation_event = &mut ctx.accounts.automation_event;
+    automation_event.circle = circle_automation.circle;
+    automation_event.event_type = AutomationEventType::ContributionCollection;
+    automation_event.timestamp = clock.unix_timestamp;
+    automation_event.success = true;
+    automation_event.data = Vec::new();
+    automation_event.error_message = None;
+    automation_event.bump = *ctx.bumps.get("automation_event").unwrap();
+    
+    msg!("Automated contribution collection triggered for circle: {}", circle_automation.circle);
+    Ok(())
+}
+
+pub fn automated_payout_distribution(
+    ctx: Context<AutomatedPayoutDistribution>,
+    recipient: Pubkey,
+) -> Result<()> {
+    let circle_automation = &mut ctx.accounts.circle_automation;
+    let clock = Clock::get()?;
+    
+    // Verify automation is enabled and it's time to distribute
+    require!(circle_automation.auto_distribute_enabled, HaloError::AutomationDisabled);
+    require!(
+        circle_automation.should_distribute_payouts(clock.unix_timestamp),
+        HaloError::AutomationNotScheduled
+    );
+    
+    // Update last check time
+    circle_automation.last_distribution_check = clock.unix_timestamp;
+    
+    // Log automation event
+    let automation_event = &mut ctx.accounts.automation_event;
+    automation_event.circle = circle_automation.circle;
+    automation_event.event_type = AutomationEventType::PayoutDistribution;
+    automation_event.timestamp = clock.unix_timestamp;
+    automation_event.success = true;
+    automation_event.data = recipient.to_bytes().to_vec();
+    automation_event.error_message = None;
+    automation_event.bump = *ctx.bumps.get("automation_event").unwrap();
+    
+    msg!("Automated payout distribution triggered for circle: {}, recipient: {}", 
+         circle_automation.circle, recipient);
+    Ok(())
+}
+
+pub fn automated_penalty_enforcement(
+    ctx: Context<AutomatedPenaltyEnforcement>,
+) -> Result<()> {
+    let circle_automation = &mut ctx.accounts.circle_automation;
+    let circle = &ctx.accounts.circle;
+    let clock = Clock::get()?;
+    
+    // Verify automation is enabled and it's time to enforce penalties
+    require!(circle_automation.auto_penalty_enabled, HaloError::AutomationDisabled);
+    require!(
+        circle_automation.should_enforce_penalties(clock.unix_timestamp),
+        HaloError::AutomationNotScheduled
+    );
+    
+    // Update last check time
+    circle_automation.last_penalty_check = clock.unix_timestamp;
+    
+    // Calculate current month to check for missed contributions
+    let months_since_creation = ((clock.unix_timestamp - circle.created_at) / (30 * 24 * 60 * 60)) as u8;
+    let current_month = std::cmp::min(months_since_creation, circle.duration_months - 1);
+    
+    // Check which members have missed contributions and apply penalties
+    let mut penalties_applied = 0u32;
+    
+    // This is a simplified penalty check - in practice, you'd iterate through members
+    // and check their contribution history against the current month
+    
+    // Log automation event
+    let automation_event = &mut ctx.accounts.automation_event;
+    automation_event.circle = circle_automation.circle;
+    automation_event.event_type = AutomationEventType::PenaltyEnforcement;
+    automation_event.timestamp = clock.unix_timestamp;
+    automation_event.success = true;
+    automation_event.data = penalties_applied.to_le_bytes().to_vec();
+    automation_event.error_message = None;
+    automation_event.bump = *ctx.bumps.get("automation_event").unwrap();
+    
+    msg!("Automated penalty enforcement triggered for circle: {}, penalties applied: {}", 
+         circle_automation.circle, penalties_applied);
+    Ok(())
+}
+
+pub fn update_automation_settings(
+    ctx: Context<UpdateAutomationSettings>,
+    enabled: bool,
+    min_interval: Option<i64>,
+) -> Result<()> {
+    let automation_state = &mut ctx.accounts.automation_state;
+    
+    automation_state.enabled = enabled;
+    if let Some(interval) = min_interval {
+        automation_state.min_interval = interval;
+    }
+    automation_state.last_check = Clock::get()?.unix_timestamp;
+    
+    msg!("Automation settings updated: enabled={}, min_interval={}", 
+         enabled, automation_state.min_interval);
+    Ok(())
+}
+
+pub fn switchboard_automation_callback(
+    ctx: Context<SwitchboardAutomationCallback>,
+) -> Result<()> {
+    let automation_state = &ctx.accounts.automation_state;
+    let clock = Clock::get()?;
+    
+    // Verify this is called by Switchboard
+    require!(automation_state.enabled, HaloError::AutomationDisabled);
+    
+    // Check if enough time has passed since last check
+    require!(
+        clock.unix_timestamp >= automation_state.last_check + automation_state.min_interval,
+        HaloError::AutomationTooFrequent
+    );
+    
+    // This callback would trigger specific automation based on the round data
+    // For now, we just update the last check timestamp
+    let automation_state = &mut ctx.accounts.automation_state;
+    automation_state.last_check = clock.unix_timestamp;
+    
+    msg!("Switchboard automation callback executed at timestamp: {}", clock.unix_timestamp);
     Ok(())
 }
 
@@ -595,6 +829,19 @@ pub struct DistributePot<'info> {
     )]
     pub escrow: Account<'info, CircleEscrow>,
     
+    #[account(
+        mut,
+        seeds = [b"treasury"],
+        bump = treasury.bump
+    )]
+    pub treasury: Account<'info, Treasury>,
+    
+    #[account(
+        seeds = [b"revenue_params"],
+        bump = revenue_params.bump
+    )]
+    pub revenue_params: Account<'info, RevenueParams>,
+    
     pub authority: Signer<'info>, // Could be circle creator or governance
     
     #[account(mut)]
@@ -602,6 +849,9 @@ pub struct DistributePot<'info> {
     
     #[account(mut)]
     pub escrow_token_account: Account<'info, TokenAccount>,
+    
+    #[account(mut)]
+    pub treasury_token_account: Account<'info, TokenAccount>,
     
     pub token_program: Program<'info, Token>,
 }
@@ -744,7 +994,154 @@ pub struct CompleteCircleUpdateTrust<'info> {
     pub authority: Signer<'info>, // Could be circle creator, member, or governance
 }
 
-// Governance and Auction Instructions
+// Automation Account Structs
+
+#[derive(Accounts)]
+pub struct InitializeAutomationState<'info> {
+    #[account(
+        init,
+        payer = authority,
+        space = AutomationState::SPACE,
+        seeds = [b"automation_state"],
+        bump
+    )]
+    pub automation_state: Account<'info, AutomationState>,
+    
+    /// CHECK: Switchboard queue account
+    pub switchboard_queue: AccountInfo<'info>,
+    
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SetupCircleAutomation<'info> {
+    #[account(
+        init,
+        payer = authority,
+        space = CircleAutomation::SPACE,
+        seeds = [b"circle_automation", circle.key().as_ref()],
+        bump
+    )]
+    pub circle_automation: Account<'info, CircleAutomation>,
+    
+    #[account(mut)]
+    pub automation_state: Account<'info, AutomationState>,
+    
+    pub circle: Account<'info, Circle>,
+    
+    /// CHECK: Switchboard job account
+    pub switchboard_job: AccountInfo<'info>,
+    
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AutomatedContributionCollection<'info> {
+    #[account(
+        mut,
+        seeds = [b"circle_automation", circle_automation.circle.as_ref()],
+        bump = circle_automation.bump
+    )]
+    pub circle_automation: Account<'info, CircleAutomation>,
+    
+    #[account(
+        init,
+        payer = payer,
+        space = AutomationEvent::SPACE,
+        seeds = [b"automation_event", circle_automation.circle.as_ref(), &Clock::get().unwrap().unix_timestamp.to_le_bytes()],
+        bump
+    )]
+    pub automation_event: Account<'info, AutomationEvent>,
+    
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AutomatedPayoutDistribution<'info> {
+    #[account(
+        mut,
+        seeds = [b"circle_automation", circle_automation.circle.as_ref()],
+        bump = circle_automation.bump
+    )]
+    pub circle_automation: Account<'info, CircleAutomation>,
+    
+    #[account(
+        init,
+        payer = payer,
+        space = AutomationEvent::SPACE,
+        seeds = [b"automation_event", circle_automation.circle.as_ref(), &Clock::get().unwrap().unix_timestamp.to_le_bytes()],
+        bump
+    )]
+    pub automation_event: Account<'info, AutomationEvent>,
+    
+    pub distribute_pot_accounts: DistributePot<'info>,
+    
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AutomatedPenaltyEnforcement<'info> {
+    #[account(
+        mut,
+        seeds = [b"circle_automation", circle_automation.circle.as_ref()],
+        bump = circle_automation.bump
+    )]
+    pub circle_automation: Account<'info, CircleAutomation>,
+    
+    pub circle: Account<'info, Circle>,
+    
+    #[account(
+        init,
+        payer = payer,
+        space = AutomationEvent::SPACE,
+        seeds = [b"automation_event", circle_automation.circle.as_ref(), &Clock::get().unwrap().unix_timestamp.to_le_bytes()],
+        bump
+    )]
+    pub automation_event: Account<'info, AutomationEvent>,
+    
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateAutomationSettings<'info> {
+    #[account(
+        mut,
+        seeds = [b"automation_state"],
+        bump = automation_state.bump,
+        has_one = authority
+    )]
+    pub automation_state: Account<'info, AutomationState>,
+    
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SwitchboardAutomationCallback<'info> {
+    #[account(
+        mut,
+        seeds = [b"automation_state"],
+        bump = automation_state.bump
+    )]
+    pub automation_state: Account<'info, AutomationState>,
+    
+    /// CHECK: Switchboard aggregator account  
+    pub switchboard_feed: AccountInfo<'info>,
+}// Governance and Auction Instructions
 
 pub fn create_proposal(
     ctx: Context<CreateProposal>,
