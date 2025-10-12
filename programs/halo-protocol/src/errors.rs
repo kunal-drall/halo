@@ -50,6 +50,48 @@ pub enum HaloError {
     SocialProofAlreadyExists,
     #[msg("Invalid social proof")]
     InvalidSocialProof,
+    #[msg("Proposal not found")]
+    ProposalNotFound,
+    #[msg("Proposal not active")]
+    ProposalNotActive,
+    #[msg("Voting period has ended")]
+    VotingPeriodEnded,
+    #[msg("Voting period has not started")]
+    VotingPeriodNotStarted,
+    #[msg("Already voted on this proposal")]
+    AlreadyVoted,
+    #[msg("Insufficient voting power")]
+    InsufficientVotingPower,
+    #[msg("Proposal execution threshold not met")]
+    ExecutionThresholdNotMet,
+    #[msg("Proposal already executed")]
+    ProposalAlreadyExecuted,
+    #[msg("Invalid proposal type")]
+    InvalidProposalType,
+    #[msg("Invalid voting period")]
+    InvalidVotingPeriod,
+    #[msg("Auction not found")]
+    AuctionNotFound,
+    #[msg("Auction not active")]
+    AuctionNotActive,
+    #[msg("Auction has ended")]
+    AuctionHasEnded,
+    #[msg("Bid too low")]
+    BidTooLow,
+    #[msg("Insufficient stake for bid")]
+    InsufficientStakeForBid,
+    #[msg("Cannot bid on own auction")]
+    CannotBidOnOwnAuction,
+    #[msg("Auction already settled")]
+    AuctionAlreadySettled,
+    #[msg("Only auction winner can claim")]
+    OnlyWinnerCanClaim,
+    #[msg("Auction not ended")]
+    AuctionNotEnded,
+    #[msg("Invalid auction duration")]
+    InvalidAuctionDuration,
+    #[msg("No pot available for auction")]
+    NoPotAvailableForAuction,
     #[msg("Automation is disabled")]
     AutomationDisabled,
     #[msg("Automation not scheduled at this time")]
