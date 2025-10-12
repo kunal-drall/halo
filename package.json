@@ -20,7 +20,12 @@
     "example:solend-full": "ts-node app/solend-example.ts",
     "example:automation": "ts-node app/automation-example.ts",
     "example:production": "ts-node app/production-automation-example.ts",
-    "deploy-script": "ts-node app/deploy.ts"
+    "deploy-script": "ts-node app/deploy.ts",
+    "demo": "ts-node app/run-full-demo.ts",
+    "demo:5-member": "ts-node app/demo-5-member-circle.ts",
+    "demo:contributions": "ts-node app/simulate-contributions.ts",
+    "demo:payouts": "ts-node app/simulate-payouts.ts",
+    "demo:governance": "ts-node app/simulate-governance.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.28.0",
