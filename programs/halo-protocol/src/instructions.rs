@@ -33,14 +33,14 @@ pub fn initialize_circle(
     circle.members = Vec::new();
     circle.monthly_contributions = Vec::new();
     circle.total_pot = 0;
-    circle.bump = *ctx.bumps.get("circle").unwrap();
+    circle.bump = ctx.bumps.circle;
 
     // Initialize escrow
     let escrow = &mut ctx.accounts.escrow;
     escrow.circle = circle.key();
     escrow.total_amount = 0;
     escrow.monthly_pots = vec![0; duration_months as usize];
-    escrow.bump = *ctx.bumps.get("escrow").unwrap();
+    escrow.bump = ctx.bumps.escrow;
 
     msg!("Circle initialized with ID: {}", circle.id);
     Ok(())
@@ -95,7 +95,7 @@ pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
     member_account.trust_score = trust_score;
     member_account.trust_tier = trust_tier;
     member_account.contributions_missed = 0;
-    member_account.bump = *ctx.bumps.get("member").unwrap();
+    member_account.bump = ctx.bumps.member;
 
     // Add member to circle
     circle.members.push(ctx.accounts.member_authority.key());
@@ -393,7 +393,7 @@ pub fn initialize_trust_score(ctx: Context<InitializeTrustScore>) -> Result<()> 
     trust_score.missed_contributions = 0;
     trust_score.social_proofs = Vec::new();
     trust_score.last_updated = clock.unix_timestamp;
-    trust_score.bump = *ctx.bumps.get("trust_score").unwrap();
+    trust_score.bump = ctx.bumps.trust_score;
 
     msg!("Trust score initialized for {}", ctx.accounts.authority.key());
     Ok(())
@@ -514,7 +514,7 @@ pub fn initialize_automation_state(
     automation_state.active_jobs = 0;
     automation_state.min_interval = min_interval;
     automation_state.last_check = Clock::get()?.unix_timestamp;
-    automation_state.bump = *ctx.bumps.get("automation_state").unwrap();
+    automation_state.bump = ctx.bumps.automation_state;
     
     msg!("Automation state initialized with min_interval: {}", min_interval);
     Ok(())
@@ -554,7 +554,7 @@ pub fn setup_circle_automation(
     circle_automation.last_contribution_check = 0;
     circle_automation.last_distribution_check = 0;
     circle_automation.last_penalty_check = 0;
-    circle_automation.bump = *ctx.bumps.get("circle_automation").unwrap();
+    circle_automation.bump = ctx.bumps.circle_automation;
     
     // Update global automation state
     let automation_state = &mut ctx.accounts.automation_state;
@@ -588,7 +588,7 @@ pub fn automated_contribution_collection(
     automation_event.success = true;
     automation_event.data = Vec::new();
     automation_event.error_message = None;
-    automation_event.bump = *ctx.bumps.get("automation_event").unwrap();
+    automation_event.bump = ctx.bumps.automation_event;
     
     msg!("Automated contribution collection triggered for circle: {}", circle_automation.circle);
     Ok(())
@@ -619,7 +619,7 @@ pub fn automated_payout_distribution(
     automation_event.success = true;
     automation_event.data = recipient.to_bytes().to_vec();
     automation_event.error_message = None;
-    automation_event.bump = *ctx.bumps.get("automation_event").unwrap();
+    automation_event.bump = ctx.bumps.automation_event;
     
     msg!("Automated payout distribution triggered for circle: {}, recipient: {}", 
          circle_automation.circle, recipient);
@@ -661,7 +661,7 @@ pub fn automated_penalty_enforcement(
     automation_event.success = true;
     automation_event.data = penalties_applied.to_le_bytes().to_vec();
     automation_event.error_message = None;
-    automation_event.bump = *ctx.bumps.get("automation_event").unwrap();
+    automation_event.bump = ctx.bumps.automation_event;
     
     msg!("Automated penalty enforcement triggered for circle: {}, penalties applied: {}", 
          circle_automation.circle, penalties_applied);

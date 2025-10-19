@@ -23,7 +23,7 @@
     "deploy-script": "ts-node app/deploy.ts"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.28.0",
+    "@coral-xyz/anchor": "^0.30.1",
     "@solana/web3.js": "^1.87.6",
     "@solendprotocol/common": "^1.1.79",
     "@solendprotocol/solend-sdk": "^0.14.26"
