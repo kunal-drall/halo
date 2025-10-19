@@ -15,7 +15,7 @@ pub fn initialize_treasury(ctx: Context<InitializeTreasury>) -> Result<()> {
     treasury.yield_fees = 0;
     treasury.management_fees = 0;
     treasury.last_management_fee_collection = clock.unix_timestamp;
-    treasury.bump = *ctx.bumps.get("treasury").unwrap();
+    treasury.bump = ctx.bumps.treasury;
 
     msg!("Treasury initialized with authority: {}", treasury.authority);
     Ok(())
@@ -34,7 +34,7 @@ pub fn initialize_revenue_params(ctx: Context<InitializeRevenueParams>) -> Resul
     params.management_fee_rate = management_fee;
     params.management_fee_interval = interval;
     params.last_updated = clock.unix_timestamp;
-    params.bump = *ctx.bumps.get("revenue_params").unwrap();
+    params.bump = ctx.bumps.revenue_params;
 
     msg!("Revenue parameters initialized with defaults");
     Ok(())
@@ -197,7 +197,7 @@ pub fn create_revenue_report(
     report.total_yield = 0;
     report.total_managed_stake = 0;
     
-    report.bump = *ctx.bumps.get("revenue_report").unwrap();
+    report.bump = ctx.bumps.revenue_report;
     
     msg!("Revenue report created for period {} to {}", period_start, period_end);
     Ok(())
