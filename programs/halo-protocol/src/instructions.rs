@@ -1200,7 +1200,7 @@ pub fn create_proposal(
     proposal.executed = false;
     proposal.executed_at = None;
     proposal.new_interest_rate = new_interest_rate;
-    proposal.bump = *ctx.bumps.get("proposal").unwrap();
+    proposal.bump = ctx.bumps.proposal;
 
     emit!(ProposalCreated {
         proposal_id: proposal.id,
@@ -1242,7 +1242,7 @@ pub fn cast_vote(
     vote_account.quadratic_weight = quadratic_weight;
     vote_account.support = support;
     vote_account.timestamp = clock.unix_timestamp;
-    vote_account.bump = *ctx.bumps.get("vote").unwrap();
+    vote_account.bump = ctx.bumps.vote;
 
     // Update proposal tallies
     proposal.total_voting_power = proposal.total_voting_power.checked_add(voting_power)
@@ -1346,7 +1346,7 @@ pub fn create_auction(
     auction.status = AuctionStatus::Active;
     auction.settled = false;
     auction.bid_count = 0;
-    auction.bump = *ctx.bumps.get("auction").unwrap();
+    auction.bump = ctx.bumps.auction;
 
     emit!(AuctionCreated {
         auction_id: auction.id,
@@ -1409,7 +1409,7 @@ pub fn place_bid(
     bid_account.bidder_stake = member_account.stake_amount;
     bid_account.timestamp = clock.unix_timestamp;
     bid_account.is_highest = true;
-    bid_account.bump = *ctx.bumps.get("bid").unwrap();
+    bid_account.bump = ctx.bumps.bid;
 
     emit!(BidPlaced {
         auction_id: auction.id,
@@ -1465,7 +1465,7 @@ pub struct CreateProposal<'info> {
         init,
         payer = proposer,
         space = GovernanceProposal::space(),
-        seeds = [b"proposal", circle.key().as_ref(), &Clock::get()?.unix_timestamp.to_le_bytes()],
+        seeds = [b"proposal", circle.key().as_ref()],
         bump
     )]
     pub proposal: Account<'info, GovernanceProposal>,
@@ -1521,7 +1521,7 @@ pub struct CreateAuction<'info> {
         init,
         payer = initiator,
         space = Auction::space(),
-        seeds = [b"auction", circle.key().as_ref(), &Clock::get()?.unix_timestamp.to_le_bytes()],
+        seeds = [b"auction", circle.key().as_ref()],
         bump
     )]
     pub auction: Account<'info, Auction>,
@@ -1544,7 +1544,7 @@ pub struct PlaceBid<'info> {
         init,
         payer = bidder,
         space = Bid::space(),
-        seeds = [b"bid", auction.key().as_ref(), bidder.key().as_ref(), &Clock::get()?.unix_timestamp.to_le_bytes()],
+        seeds = [b"bid", auction.key().as_ref(), bidder.key().as_ref()],
         bump
     )]
     pub bid: Account<'info, Bid>,
