@@ -5,7 +5,7 @@ skip-lint = false
 [toolchain]
 
 [programs.localnet]
-halo_protocol = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+halo_protocol = "7KZ32HfH5Bj2YJVg4VRhYpTnMFHKx1iew4Rhy8nhQNiZ"
 
 [registry]
 url = "https://api.apr.dev"
