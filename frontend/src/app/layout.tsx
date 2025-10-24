@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { Providers } from './providers'
+import { WalletContextProvider } from '@/contexts/WalletContext'
+import { ToastProvider } from '@/components/ui/toast'
+import { BottomNavigation } from '@/components/navigation/BottomNavigation'
 
 export const metadata: Metadata = {
   title: 'Halo Protocol - Finance Powered by Community & Solana',
@@ -18,9 +21,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        <Providers>
-          {children}
-        </Providers>
+        <WalletContextProvider>
+          <ToastProvider>
+            <Providers>
+              <div className="min-h-screen pb-20">
+                {children}
+              </div>
+              <BottomNavigation />
+            </Providers>
+          </ToastProvider>
+        </WalletContextProvider>
       </body>
     </html>
   )

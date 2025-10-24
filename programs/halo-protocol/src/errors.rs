@@ -112,4 +112,29 @@ pub enum HaloError {
     RevenueCollectionTooFrequent,
     #[msg("Invalid revenue report period")]
     InvalidRevenueReportPeriod,
+    // ROSCA-specific errors
+    #[msg("Not your turn to claim payout")]
+    NotYourTurn,
+    #[msg("Invalid payout method")]
+    InvalidPayoutMethod,
+    #[msg("Already received payout")]
+    AlreadyReceivedPayout,
+    #[msg("Too early for payout")]
+    TooEarlyForPayout,
+    #[msg("Insufficient insurance amount")]
+    InsufficientInsurance,
+    #[msg("Excessive insurance amount")]
+    ExcessiveInsurance,
+    #[msg("No claimable insurance")]
+    NoClaimableInsurance,
+    #[msg("Insufficient coverage")]
+    InsufficientCoverage,
+    #[msg("Deposit amount below minimum threshold")]
+    BelowMinimumDeposit,
+    #[msg("Insufficient Solend balance")]
+    InsufficientSolendBalance,
+    #[msg("No claimable yield")]
+    NoClaimableYield,
+    #[msg("Unauthorized member")]
+    UnauthorizedMember,
 }

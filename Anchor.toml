@@ -3,15 +3,16 @@ seeds = false
 skip-lint = false
 
 [toolchain]
+anchor_version = "0.30.1"
 
-[programs.localnet]
-halo_protocol = "7KZ32HfH5Bj2YJVg4VRhYpTnMFHKx1iew4Rhy8nhQNiZ"
+[programs.devnet]
+halo_protocol = "9KmMjZrsvTdRnfr2dZerby2d5f6tjyPZwViweQxV2FnR"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

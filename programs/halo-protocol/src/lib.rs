@@ -1,17 +1,21 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-declare_id!("7KZ32HfH5Bj2YJVg4VRhYpTnMFHKx1iew4Rhy8nhQNiZ");
+declare_id!("9KmMjZrsvTdRnfr2dZerby2d5f6tjyPZwViweQxV2FnR");
 
 pub mod errors;
 pub mod instructions;
 pub mod state;
 pub mod revenue;
+pub mod insurance;
+pub mod yield_integration;
 
 pub use errors::*;
 pub use instructions::*;
 pub use state::*;
 pub use revenue::*;
+pub use insurance::*;
+pub use yield_integration::*;
 
 #[program]
 pub mod halo_protocol {
@@ -211,5 +215,53 @@ pub mod halo_protocol {
 
     pub fn distribute_yield(ctx: Context<DistributeYield>, yield_amount: u64) -> Result<()> {
         revenue::distribute_yield(ctx, yield_amount)
+    }
+
+    // ROSCA-specific instructions
+    pub fn claim_payout(ctx: Context<ClaimPayout>) -> Result<()> {
+        instructions::claim_payout(ctx)
+    }
+
+    pub fn bid_for_payout(ctx: Context<BidForPayout>, bid_amount: u64) -> Result<()> {
+        instructions::bid_for_payout(ctx, bid_amount)
+    }
+
+    pub fn process_payout_round(ctx: Context<ProcessPayoutRound>) -> Result<()> {
+        instructions::process_payout_round(ctx)
+    }
+
+    // Insurance instructions
+    pub fn stake_insurance(ctx: Context<StakeInsurance>, amount: u64) -> Result<()> {
+        insurance::stake_insurance(ctx, amount)
+    }
+
+    pub fn claim_insurance(ctx: Context<ClaimInsurance>, defaulting_member: Pubkey) -> Result<()> {
+        insurance::claim_insurance(ctx, defaulting_member)
+    }
+
+    pub fn return_insurance_with_bonus(ctx: Context<ReturnInsuranceWithBonus>) -> Result<()> {
+        insurance::return_insurance_with_bonus(ctx)
+    }
+
+    pub fn slash_insurance(ctx: Context<SlashInsurance>) -> Result<()> {
+        insurance::slash_insurance(ctx)
+    }
+
+    // Yield integration instructions
+    pub fn deposit_to_solend(ctx: Context<DepositToSolend>, amount: u64) -> Result<()> {
+        yield_integration::deposit_to_solend(ctx, amount)
+    }
+
+    pub fn withdraw_from_solend(ctx: Context<WithdrawFromSolend>, amount: u64) -> Result<()> {
+        yield_integration::withdraw_from_solend(ctx, amount)
+    }
+
+    pub fn calculate_yield_share(ctx: Context<CalculateYieldShare>) -> Result<()> {
+        yield_integration::calculate_yield_share(ctx)?;
+        Ok(())
+    }
+
+    pub fn distribute_yield_to_member(ctx: Context<DistributeYield>, member: Pubkey) -> Result<()> {
+        yield_integration::distribute_yield(ctx, member)
     }
 }
