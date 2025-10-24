@@ -1,0 +1,676 @@
+{
+  "address": "9KmMjZrsvTdRnfr2dZerby2d5f6tjyPZwViweQxV2FnR",
+  "metadata": {
+    "name": "halo_protocol",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Solana Anchor smart contract for ROSCA circles"
+  },
+  "accounts": [
+    {
+      "name": "Circle",
+      "discriminator": [174, 152, 111, 252, 45, 169, 233, 217],
+      "size": 512,
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "type": "publicKey"
+          },
+          {
+            "name": "contribution_amount",
+            "type": "u64"
+          },
+          {
+            "name": "duration_months",
+            "type": "u8"
+          },
+          {
+            "name": "max_members",
+            "type": "u8"
+          },
+          {
+            "name": "current_month",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "members",
+            "type": {
+              "vec": "publicKey"
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "last_contribution",
+            "type": "i64"
+          },
+          {
+            "name": "total_contributed",
+            "type": "u64"
+          },
+          {
+            "name": "total_distributed",
+            "type": "u64"
+          },
+          {
+            "name": "penalty_pool",
+            "type": "u64"
+          },
+          {
+            "name": "trust_score_threshold",
+            "type": "u16"
+          },
+          {
+            "name": "governance_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "auction_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "revenue_sharing_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "automation_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "circle_type",
+            "type": "u8"
+          },
+          {
+            "name": "invite_code",
+            "type": "string"
+          },
+          {
+            "name": "metadata_uri",
+            "type": "string"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Member",
+      "discriminator": [29, 149, 6, 208, 236, 21, 196, 195],
+      "size": 256,
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "publicKey"
+          },
+          {
+            "name": "circle",
+            "type": "publicKey"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "contribution_history",
+            "type": {
+              "vec": "u64"
+            }
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "has_received_pot",
+            "type": "bool"
+          },
+          {
+            "name": "trust_score",
+            "type": "u16"
+          },
+          {
+            "name": "social_proofs",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "defi_activity_score",
+            "type": "u16"
+          },
+          {
+            "name": "penalty_count",
+            "type": "u8"
+          },
+          {
+            "name": "last_contribution",
+            "type": "i64"
+          },
+          {
+            "name": "total_contributed",
+            "type": "u64"
+          },
+          {
+            "name": "total_received",
+            "type": "u64"
+          },
+          {
+            "name": "governance_power",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TrustScore",
+      "discriminator": [123, 45, 67, 89, 12, 34, 56, 78],
+      "size": 128,
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "publicKey"
+          },
+          {
+            "name": "score",
+            "type": "u16"
+          },
+          {
+            "name": "tier",
+            "type": "u8"
+          },
+          {
+            "name": "social_proofs",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "defi_activity_score",
+            "type": "u16"
+          },
+          {
+            "name": "payment_history_score",
+            "type": "u16"
+          },
+          {
+            "name": "completion_rate",
+            "type": "u16"
+          },
+          {
+            "name": "penalty_count",
+            "type": "u8"
+          },
+          {
+            "name": "last_updated",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Escrow",
+      "discriminator": [87, 65, 43, 21, 98, 76, 54, 32],
+      "size": 64,
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "type": "publicKey"
+          },
+          {
+            "name": "total_amount",
+            "type": "u64"
+          },
+          {
+            "name": "available_amount",
+            "type": "u64"
+          },
+          {
+            "name": "locked_amount",
+            "type": "u64"
+          },
+          {
+            "name": "penalty_amount",
+            "type": "u64"
+          },
+          {
+            "name": "yield_earned",
+            "type": "u64"
+          },
+          {
+            "name": "last_updated",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "instructions": [
+    {
+      "name": "initialize_circle",
+      "discriminator": [
+        174,
+        152,
+        111,
+        252,
+        45,
+        169,
+        233,
+        217
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "writable": false,
+          "signer": false
+        }
+      ],
+      "args": [
+        {
+          "name": "contribution_amount",
+          "type": "u64"
+        },
+        {
+          "name": "duration_months",
+          "type": "u8"
+        },
+        {
+          "name": "max_members",
+          "type": "u8"
+        },
+        {
+          "name": "penalty_rate",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "join_circle",
+      "discriminator": [
+        29,
+        149,
+        6,
+        208,
+        236,
+        21,
+        196,
+        195
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "member",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "writable": false,
+          "signer": false
+        }
+      ],
+      "args": [
+        {
+          "name": "stake_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "contribute",
+      "discriminator": [
+        195,
+        191,
+        113,
+        122,
+        249,
+        252,
+        22,
+        221
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "member",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "distribute_pot",
+      "discriminator": [
+        231,
+        119,
+        117,
+        243,
+        83,
+        105,
+        54,
+        143
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "recipient_member",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "authority",
+          "writable": false,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_penalty",
+      "discriminator": [
+        244,
+        190,
+        138,
+        53,
+        207,
+        40,
+        27,
+        187
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "defaulted_member",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "leave_circle",
+      "discriminator": [
+        143,
+        202,
+        209,
+        95,
+        41,
+        57,
+        58,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "member",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_trust_score",
+      "discriminator": [
+        74,
+        232,
+        208,
+        139,
+        209,
+        124,
+        22,
+        86
+      ],
+      "accounts": [
+        {
+          "name": "trust_score",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "writable": false,
+          "signer": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "update_trust_score",
+      "discriminator": [
+        207,
+        34,
+        194,
+        112,
+        241,
+        57,
+        87,
+        156
+      ],
+      "accounts": [
+        {
+          "name": "trust_score",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "authority",
+          "writable": false,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "add_social_proof",
+      "discriminator": [
+        143,
+        36,
+        179,
+        205,
+        2,
+        168,
+        120,
+        86
+      ],
+      "accounts": [
+        {
+          "name": "trust_score",
+          "writable": true,
+          "signer": false
+        },
+        {
+          "name": "authority",
+          "writable": false,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "proof_type",
+          "type": "string"
+        },
+        {
+          "name": "identifier",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Circle",
+      "discriminator": [
+        45,
+        175,
+        218,
+        53,
+        158,
+        138,
+        66,
+        62
+      ]
+    },
+    {
+      "name": "Member",
+      "discriminator": [
+        230,
+        218,
+        113,
+        192,
+        117,
+        124,
+        233,
+        11
+      ]
+    },
+    {
+      "name": "CircleEscrow",
+      "discriminator": [
+        145,
+        221,
+        74,
+        98,
+        176,
+        193,
+        73,
+        199
+      ]
+    },
+    {
+      "name": "TrustScore",
+      "discriminator": [
+        86,
+        195,
+        163,
+        111,
+        245,
+        25,
+        202,
+        175
+      ]
+    }
+  ],
+  "types": []
+}

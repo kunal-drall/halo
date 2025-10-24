@@ -30,13 +30,50 @@ pub struct Circle {
     pub total_pot: u64,
     /// Bump seed for PDA
     pub bump: u8,
+    /// ROSCA-specific fields
+    /// Payout method for the circle
+    pub payout_method: PayoutMethod,
+    /// Order of payout recipients
+    pub payout_queue: Vec<Pubkey>,
+    /// Minimum trust tier required to join
+    pub min_trust_tier: u8,
+    /// Insurance pool account
+    pub insurance_pool: Pubkey,
+    /// Circle type (Standard, Auction, Random, Hybrid)
+    pub circle_type: CircleType,
+    /// Invite code for private circles
+    pub invite_code: Option<String>,
+    /// Whether circle is public
+    pub is_public: bool,
+    /// Escrow account for pooled funds
+    pub escrow_account: Pubkey,
+    /// Total yield earned from DeFi
+    pub total_yield_earned: u64,
+    /// Next payout recipient
+    pub next_payout_recipient: Option<Pubkey>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
 pub enum CircleStatus {
-    Active,
-    Completed,
-    Terminated,
+    Forming,    // Accepting members
+    Active,     // Running
+    Completed,  // Finished
+    Terminated, // Has defaults
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum PayoutMethod {
+    FixedRotation,
+    Auction,
+    Random,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum CircleType {
+    Standard,
+    AuctionBased,
+    RandomRotation,
+    Hybrid,
 }
 
 impl Default for CircleStatus {
@@ -58,6 +95,15 @@ pub struct MemberContribution {
     pub member: Pubkey,
     pub amount: u64,
     pub timestamp: i64,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct ContributionRecord {
+    pub month: u8,
+    pub amount: u64,
+    pub timestamp: i64,
+    pub on_time: bool,
+    pub days_late: u8,
 }
 
 #[account]
@@ -86,6 +132,15 @@ pub struct Member {
     pub contributions_missed: u8,
     /// Bump seed for PDA
     pub bump: u8,
+    /// ROSCA-specific fields
+    /// Whether member has claimed payout
+    pub payout_claimed: bool,
+    /// Position in payout queue
+    pub payout_position: u8,
+    /// Insurance amount staked
+    pub insurance_staked: u64,
+    /// Detailed contribution records
+    pub contribution_records: Vec<ContributionRecord>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
@@ -111,6 +166,22 @@ pub struct CircleEscrow {
     pub monthly_pots: Vec<u64>,
     /// Bump seed for PDA
     pub bump: u8,
+    /// ROSCA-specific fields
+    /// Total yield earned from DeFi
+    pub total_yield_earned: u64,
+    /// Solend cToken balance
+    pub solend_c_token_balance: u64,
+    /// Last yield calculation timestamp
+    pub last_yield_calculation: i64,
+    /// Yield distribution per member
+    pub member_yield_shares: Vec<MemberYieldShare>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct MemberYieldShare {
+    pub member: Pubkey,
+    pub yield_earned: u64,
+    pub yield_claimed: u64,
 }
 
 impl Circle {

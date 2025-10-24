@@ -8,22 +8,18 @@ import {
 } from "@solana/spl-token";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { SolendService, createSolendService } from "./solend-service";
-
-// Mock type for the Halo Protocol since we don't have the actual types
-interface HaloProtocol {
-  // Add minimal type definitions as needed
-}
+import { HaloProtocolProgram, ProgramId } from "../target/types/halo_protocol";
 
 /**
  * Utility functions for interacting with the Halo Protocol with Solend integration
  */
 
 export class HaloProtocolClient {
-  private program: Program<HaloProtocol>;
+  private program: Program<HaloProtocolProgram>;
   private provider: anchor.AnchorProvider;
   private solendService: SolendService | null = null;
 
-  constructor(program: Program<HaloProtocol>) {
+  constructor(program: Program<HaloProtocolProgram>) {
     this.program = program;
     this.provider = program.provider as anchor.AnchorProvider;
   }

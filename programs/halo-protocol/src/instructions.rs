@@ -1628,3 +1628,286 @@ pub struct AuctionSettled {
     pub winning_bid: u64,
     pub settled_at: i64,
 }
+
+// ROSCA-specific instruction contexts
+#[derive(Accounts)]
+pub struct ClaimPayout<'info> {
+    #[account(mut)]
+    pub circle: Account<'info, Circle>,
+    
+    #[account(mut)]
+    pub member: Account<'info, Member>,
+    
+    #[account(mut)]
+    pub escrow: Account<'info, CircleEscrow>,
+    
+    #[account(
+        mut,
+        constraint = member_authority.key() == member.authority
+    )]
+    pub member_authority: Signer<'info>,
+    
+    #[account(
+        mut,
+        constraint = member_token_account.owner == member_authority.key()
+    )]
+    pub member_token_account: Account<'info, TokenAccount>,
+    
+    #[account(
+        mut,
+        constraint = escrow_token_account.owner == escrow.key()
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+    
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct BidForPayout<'info> {
+    #[account(mut)]
+    pub circle: Account<'info, Circle>,
+    
+    #[account(mut)]
+    pub member: Account<'info, Member>,
+    
+    #[account(
+        mut,
+        constraint = member_authority.key() == member.authority
+    )]
+    pub member_authority: Signer<'info>,
+    
+    #[account(
+        mut,
+        constraint = member_token_account.owner == member_authority.key()
+    )]
+    pub member_token_account: Account<'info, TokenAccount>,
+    
+    #[account(
+        mut,
+        constraint = escrow_token_account.owner == circle.escrow_account
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+    
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct ProcessPayoutRound<'info> {
+    #[account(mut)]
+    pub circle: Account<'info, Circle>,
+    
+    #[account(mut)]
+    pub escrow: Account<'info, CircleEscrow>,
+    
+    #[account(
+        mut,
+        constraint = escrow_token_account.owner == escrow.key()
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+    
+    pub token_program: Program<'info, Token>,
+}
+
+// ROSCA instruction implementations
+pub fn claim_payout(ctx: Context<ClaimPayout>) -> Result<()> {
+    let circle = &mut ctx.accounts.circle;
+    let member = &mut ctx.accounts.member;
+    let escrow = &mut ctx.accounts.escrow;
+    
+    // Validate it's member's turn
+    require!(
+        circle.next_payout_recipient == Some(member.authority),
+        HaloError::NotYourTurn
+    );
+    
+    // Calculate payout amount (base + yield share)
+    let base_payout = circle.contribution_amount * circle.current_members as u64;
+    let member_yield_share = escrow.member_yield_shares
+        .iter()
+        .find(|share| share.member == member.authority)
+        .map(|share| share.yield_earned)
+        .unwrap_or(0);
+    
+    let total_payout = base_payout + member_yield_share;
+    
+    // Transfer payout to member
+    let transfer_instruction = Transfer {
+        from: ctx.accounts.escrow_token_account.to_account_info(),
+        to: ctx.accounts.member_token_account.to_account_info(),
+        authority: ctx.accounts.escrow.to_account_info(),
+    };
+    
+    let cpi_ctx = CpiContext::new(
+        ctx.accounts.token_program.to_account_info(),
+        transfer_instruction,
+    );
+    
+    token::transfer(cpi_ctx, total_payout)?;
+    
+    // Update member
+    member.payout_claimed = true;
+    member.has_received_pot = true;
+    
+    // Update circle
+    circle.current_month += 1;
+    circle.total_pot -= total_payout;
+    
+    // Determine next recipient
+    if circle.current_month < circle.duration_months {
+        // Move to next in queue
+        let current_index = circle.payout_queue
+            .iter()
+            .position(|&p| p == member.authority)
+            .unwrap_or(0);
+        
+        let next_index = (current_index + 1) % circle.payout_queue.len();
+        circle.next_payout_recipient = Some(circle.payout_queue[next_index]);
+    } else {
+        // Circle completed
+        circle.status = CircleStatus::Completed;
+        circle.next_payout_recipient = None;
+    }
+    
+    // Emit event
+    emit!(PayoutClaimed {
+        circle: circle.key(),
+        member: member.authority,
+        amount: total_payout,
+        yield_share: member_yield_share,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+    
+    Ok(())
+}
+
+pub fn bid_for_payout(ctx: Context<BidForPayout>, bid_amount: u64) -> Result<()> {
+    let circle = &mut ctx.accounts.circle;
+    let member = &mut ctx.accounts.member;
+    
+    // Validate auction-based circle
+    require!(
+        matches!(circle.payout_method, PayoutMethod::Auction),
+        HaloError::InvalidPayoutMethod
+    );
+    
+    // Validate member hasn't received payout yet
+    require!(!member.payout_claimed, HaloError::AlreadyReceivedPayout);
+    
+    // Transfer bid to escrow
+    let transfer_instruction = Transfer {
+        from: ctx.accounts.member_token_account.to_account_info(),
+        to: ctx.accounts.escrow_token_account.to_account_info(),
+        authority: ctx.accounts.member_authority.to_account_info(),
+    };
+    
+    let cpi_ctx = CpiContext::new(
+        ctx.accounts.token_program.to_account_info(),
+        transfer_instruction,
+    );
+    
+    token::transfer(cpi_ctx, bid_amount)?;
+    
+    // Update payout queue based on bid
+    // Higher bid = earlier position
+    let insert_position = circle.payout_queue
+        .iter()
+        .position(|&p| {
+            // Find position based on existing bids (simplified)
+            // In real implementation, would need to track bids
+            false
+        })
+        .unwrap_or(circle.payout_queue.len());
+    
+    circle.payout_queue.insert(insert_position, member.authority);
+    
+    // Emit event
+    emit!(BidPlaced {
+        circle: circle.key(),
+        member: member.authority,
+        bid_amount,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+    
+    Ok(())
+}
+
+pub fn process_payout_round(ctx: Context<ProcessPayoutRound>) -> Result<()> {
+    let circle = &mut ctx.accounts.circle;
+    
+    // Validate circle is active
+    require!(
+        circle.status == CircleStatus::Active,
+        HaloError::CircleNotActive
+    );
+    
+    // Validate it's time for next round
+    let current_time = Clock::get()?.unix_timestamp;
+    let time_since_creation = current_time - circle.created_at;
+    let months_elapsed = (time_since_creation / (30 * 24 * 60 * 60)) as u8;
+    
+    require!(
+        months_elapsed > circle.current_month,
+        HaloError::TooEarlyForPayout
+    );
+    
+    // Determine next recipient based on payout method
+    match circle.payout_method {
+        PayoutMethod::FixedRotation => {
+            // Use predetermined order
+            if let Some(next_recipient) = circle.payout_queue.get(circle.current_month as usize) {
+                circle.next_payout_recipient = Some(*next_recipient);
+            }
+        },
+        PayoutMethod::Random => {
+            // Random selection from remaining members
+            let remaining_members: Vec<Pubkey> = circle.members
+                .iter()
+                .filter(|&&member| {
+                    // Filter out members who already received payout
+                    // This would need to be tracked in member accounts
+                    true
+                })
+                .cloned()
+                .collect();
+            
+            if !remaining_members.is_empty() {
+                let random_index = (current_time % remaining_members.len() as i64) as usize;
+                circle.next_payout_recipient = Some(remaining_members[random_index]);
+            }
+        },
+        PayoutMethod::Auction => {
+            // Use highest bidder (first in queue after bidding period)
+            if let Some(&highest_bidder) = circle.payout_queue.first() {
+                circle.next_payout_recipient = Some(highest_bidder);
+            }
+        },
+    }
+    
+    // Emit event
+    emit!(PayoutRoundProcessed {
+        circle: circle.key(),
+        current_month: circle.current_month,
+        next_recipient: circle.next_payout_recipient,
+        timestamp: current_time,
+    });
+    
+    Ok(())
+}
+
+// Events for ROSCA functionality
+#[event]
+pub struct PayoutClaimed {
+    pub circle: Pubkey,
+    pub member: Pubkey,
+    pub amount: u64,
+    pub yield_share: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct PayoutRoundProcessed {
+    pub circle: Pubkey,
+    pub current_month: u8,
+    pub next_recipient: Option<Pubkey>,
+    pub timestamp: i64,
+}
