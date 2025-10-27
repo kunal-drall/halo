@@ -2,6 +2,28 @@
 
 A Solana Anchor smart contract that implements ROSCA (Rotating Savings and Credit Association) circles, enabling groups of people to pool funds and take turns receiving the total pot. Now integrated with Solend for yield generation and lending capabilities.
 
+## 🎬 Try the Live Demo
+
+Experience Halo Protocol in action with our comprehensive 5-member circle demo!
+
+```bash
+# Quick start (2 minutes)
+npm install && npm run demo
+
+# Or follow the detailed guide
+cat QUICKSTART_DEMO.md
+```
+
+**See the demo in action:**
+- 🔵 5-member circle with USDC contributions
+- 💰 Solend yield generation (~5.2% APY)
+- ⏰ Switchboard automation scheduling
+- 🏆 Live trust score tracking
+- 🗳️ Governance voting with quadratic weighting
+- 📊 Next.js dashboard with Privy authentication
+
+[📚 Full Demo Documentation](./DEMO_README.md) | [⚡ Quick Start Guide](./QUICKSTART_DEMO.md)
+
 ## Overview
 
 ROSCA circles are traditional savings groups where members contribute a fixed amount monthly, and each month one member receives the entire pot. Halo Protocol brings this concept to the blockchain with added security, transparency, and programmable rules. With Solend integration, circle funds can earn yield while waiting for distribution.
