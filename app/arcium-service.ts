@@ -7,12 +7,18 @@
  * - Sealed bid auctions
  * - Anonymous circle participation
  *
- * Note: This implementation uses a mock/interface approach until Arcium SDK is available.
- * Update imports and implementation when @arcium/sdk is released.
+ * Based on Arcium SDK documentation:
+ * - Uses RescueCipher for encryption with x25519 key exchange
+ * - Integrates with Arcium MPC network for confidential computations
+ * - Supports sealed bid auctions via re-encryption
+ *
+ * When @arcium-hq/client is installed, import from there instead of mock implementation:
+ * import { RescueCipher, x25519 } from '@arcium-hq/client';
  */
 
 import { Connection, PublicKey, Keypair, Transaction, SystemProgram } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
+import { randomBytes } from 'crypto';
 
 // ============================================================================
 // Types and Interfaces

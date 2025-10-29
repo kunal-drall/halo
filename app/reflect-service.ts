@@ -2,13 +2,20 @@
  * Reflect Yield Service
  *
  * Integrates Reflect's capital-efficient stablecoins for dual yield generation:
- * - USDC+: Yield-bearing stablecoin with price appreciation
- * - USDJ: Delta-neutral strategy token capturing funding rates
+ * - USDC+ (Index 0): Yield-bearing stablecoin with price appreciation (~4.5% APY)
+ * - USDJ (Index 1): Delta-neutral strategy capturing funding rates (~8.2% APY)
+ * - LST (Index 2): LST delta-neutral strategy
  *
  * Combines Reflect yields with Solend lending yields for maximum returns.
  *
- * Note: This implementation uses a mock approach until Reflect SDK is available.
- * Update imports and implementation when @reflect-money/sdk is released.
+ * Based on Reflect SDK documentation:
+ * - Uses @reflectmoney/stable.ts for stablecoin operations
+ * - UsdcPlusStablecoin, UsdjStablecoin, LstStablecoin classes
+ * - Supports tokenized bonds for yield distribution
+ * - Versioned transactions with lookup tables
+ *
+ * When @reflectmoney/stable.ts is installed, import from there:
+ * import { UsdcPlusStablecoin, UsdjStablecoin, ReflectTokenizedBond } from '@reflectmoney/stable.ts';
  */
 
 import { Connection, PublicKey, Keypair, Transaction, SystemProgram } from '@solana/web3.js';
