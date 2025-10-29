@@ -20,6 +20,8 @@
     "example:solend-full": "ts-node app/solend-example.ts",
     "example:automation": "ts-node app/automation-example.ts",
     "example:production": "ts-node app/production-automation-example.ts",
+    "example:arcium": "ts-node app/arcium-example.ts",
+    "example:reflect": "ts-node app/reflect-example.ts",
     "deploy-script": "ts-node app/deploy.ts"
   },
   "dependencies": {
@@ -27,7 +29,9 @@
     "@solana/web3.js": "^1.87.6",
     "@solendprotocol/common": "^1.1.79",
     "@solendprotocol/solend-sdk": "^0.14.26",
-    "bip39": "^3.1.0"
+    "bip39": "^3.1.0",
+    "@arcium/sdk": "^0.1.0",
+    "@reflect-money/sdk": "^0.1.0"
   },
   "devDependencies": {
     "@types/chai": "^4.3.0",
