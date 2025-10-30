@@ -175,6 +175,15 @@ pub struct CircleEscrow {
     pub last_yield_calculation: i64,
     /// Yield distribution per member
     pub member_yield_shares: Vec<MemberYieldShare>,
+    /// REFLECT INTEGRATION: Dual yield tracking
+    /// Yield earned from Reflect price appreciation
+    pub reflect_yield_earned: u64,
+    /// Yield earned from Solend lending
+    pub solend_yield_earned: u64,
+    /// Reflect token type used (USDC+ or USDJ)
+    pub reflect_token_type: Option<ReflectTokenType>,
+    /// Initial Reflect price at deposit
+    pub reflect_initial_price: u64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -234,7 +243,95 @@ impl CircleEscrow {
         8 + // total_amount
         4 + 8 * Circle::MAX_DURATION as usize + // monthly_pots
         1 + // bump
-        50 // extra space
+        8 + // total_yield_earned
+        8 + // solend_c_token_balance
+        8 + // last_yield_calculation
+        4 + (32 + 8 + 8) * Circle::MAX_MEMBERS + // member_yield_shares
+        8 + // reflect_yield_earned
+        8 + // solend_yield_earned
+        2 + // reflect_token_type (Option<enum>)
+        8 + // reflect_initial_price
+        100 // extra space
+    }
+
+    /// Calculate total yield from both Reflect and Solend
+    pub fn calculate_total_dual_yield(&self) -> u64 {
+        self.reflect_yield_earned.saturating_add(self.solend_yield_earned)
+    }
+
+    /// Get combined APY from both sources (returns basis points)
+    pub fn get_combined_apy(&self, current_time: i64) -> u64 {
+        if self.last_yield_calculation == 0 || current_time <= self.last_yield_calculation {
+            return 0;
+        }
+
+        let time_elapsed = current_time - self.last_yield_calculation;
+        let total_yield = self.calculate_total_dual_yield();
+
+        if self.total_amount == 0 {
+            return 0;
+        }
+
+        // Annualize the return
+        let seconds_per_year = 31_536_000_i64; // 365 days
+        let annualized_yield = (total_yield as u128)
+            .saturating_mul(seconds_per_year as u128)
+            .checked_div(time_elapsed as u128)
+            .unwrap_or(0) as u64;
+
+        // Return APY in basis points (1% = 100 bps)
+        annualized_yield
+            .saturating_mul(10_000)
+            .checked_div(self.total_amount)
+            .unwrap_or(0)
+    }
+
+    /// Get Reflect-specific APY (returns basis points)
+    pub fn get_reflect_apy(&self, current_time: i64) -> u64 {
+        if self.last_yield_calculation == 0 || current_time <= self.last_yield_calculation {
+            return 0;
+        }
+
+        let time_elapsed = current_time - self.last_yield_calculation;
+
+        if self.total_amount == 0 {
+            return 0;
+        }
+
+        let seconds_per_year = 31_536_000_i64;
+        let annualized_yield = (self.reflect_yield_earned as u128)
+            .saturating_mul(seconds_per_year as u128)
+            .checked_div(time_elapsed as u128)
+            .unwrap_or(0) as u64;
+
+        annualized_yield
+            .saturating_mul(10_000)
+            .checked_div(self.total_amount)
+            .unwrap_or(0)
+    }
+
+    /// Get Solend-specific APY (returns basis points)
+    pub fn get_solend_apy(&self, current_time: i64) -> u64 {
+        if self.last_yield_calculation == 0 || current_time <= self.last_yield_calculation {
+            return 0;
+        }
+
+        let time_elapsed = current_time - self.last_yield_calculation;
+
+        if self.total_amount == 0 {
+            return 0;
+        }
+
+        let seconds_per_year = 31_536_000_i64;
+        let annualized_yield = (self.solend_yield_earned as u128)
+            .saturating_mul(seconds_per_year as u128)
+            .checked_div(time_elapsed as u128)
+            .unwrap_or(0) as u64;
+
+        annualized_yield
+            .saturating_mul(10_000)
+            .checked_div(self.total_amount)
+            .unwrap_or(0)
     }
 }
 
@@ -970,5 +1067,301 @@ impl Bid {
         1 + // is_highest
         1 + // bump
         50 // extra space
+    }
+}
+
+// ============================================================================
+// ARCIUM PRIVACY INTEGRATION
+// ============================================================================
+
+/// Privacy mode for circles and trust scores
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum PrivacyMode {
+    Public,          // All data visible
+    Anonymous,       // Member identities hidden
+    FullyEncrypted,  // All data encrypted via Arcium MPC
+}
+
+impl Default for PrivacyMode {
+    fn default() -> Self {
+        PrivacyMode::Public
+    }
+}
+
+/// Encrypted trust score using Arcium MPC
+/// Trust score calculations happen in encrypted environment,
+/// only final score is revealed
+#[account]
+pub struct EncryptedTrustScore {
+    /// The user's public key
+    pub authority: Pubkey,
+    /// Encrypted score data (calculated in Arcium MPC)
+    pub encrypted_score: Vec<u8>,
+    /// Reference to Arcium computation key
+    pub arcium_compute_key: Pubkey,
+    /// Whether privacy is enabled
+    pub privacy_enabled: bool,
+    /// Last time the score was updated
+    pub last_updated: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl EncryptedTrustScore {
+    pub fn space() -> usize {
+        8 + // discriminator
+        32 + // authority
+        4 + 256 + // encrypted_score (vec with max 256 bytes)
+        32 + // arcium_compute_key
+        1 + // privacy_enabled
+        8 + // last_updated
+        1 + // bump
+        50 // extra space
+    }
+}
+
+/// Private circle with Arcium privacy features
+/// Supports anonymous participation and encrypted member data
+#[account]
+pub struct PrivateCircle {
+    /// The circle this privacy config belongs to
+    pub circle: Pubkey,
+    /// Privacy mode setting
+    pub privacy_mode: PrivacyMode,
+    /// Arcium session key for this circle's encryption
+    pub arcium_session: Pubkey,
+    /// Encrypted member information
+    pub encrypted_member_data: Vec<EncryptedMemberInfo>,
+    /// Whether to allow public statistics (even in private mode)
+    pub allow_public_stats: bool,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl PrivateCircle {
+    pub const MAX_MEMBERS: usize = 20;
+
+    pub fn space() -> usize {
+        8 + // discriminator
+        32 + // circle
+        1 + // privacy_mode
+        32 + // arcium_session
+        4 + (32 + 4 + 256 + 1) * Self::MAX_MEMBERS + // encrypted_member_data vec
+        1 + // allow_public_stats
+        1 + // bump
+        100 // extra space
+    }
+}
+
+/// Encrypted member information for anonymous circles
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct EncryptedMemberInfo {
+    /// Anonymous member ID (e.g., "Member #1")
+    pub member_id: String,
+    /// Encrypted wallet address
+    pub encrypted_wallet: Vec<u8>,
+    /// Public payment status (true if current on payments)
+    pub payment_status_current: bool,
+}
+
+/// Encrypted bid for sealed-bid auctions
+#[account]
+pub struct SealedBid {
+    /// The auction this bid belongs to
+    pub auction: Pubkey,
+    /// Encrypted bid data
+    pub sealed_bid_data: Vec<u8>,
+    /// Commitment hash for verification
+    pub commitment_hash: [u8; 32],
+    /// Bidder's commitment (like a bid bond)
+    pub bidder_commitment: Pubkey,
+    /// Timestamp when bid was placed
+    pub timestamp: i64,
+    /// Whether bid has been revealed
+    pub is_revealed: bool,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl SealedBid {
+    pub fn space() -> usize {
+        8 + // discriminator
+        32 + // auction
+        4 + 256 + // sealed_bid_data (vec with max 256 bytes)
+        32 + // commitment_hash
+        32 + // bidder_commitment
+        8 + // timestamp
+        1 + // is_revealed
+        1 + // bump
+        50 // extra space
+    }
+}
+
+/// Encrypted loan terms for private borrowing
+#[account]
+pub struct PrivateLoan {
+    /// The circle this loan belongs to
+    pub circle: Pubkey,
+    /// Borrower's public key
+    pub borrower: Pubkey,
+    /// Encrypted loan amount
+    pub encrypted_amount: Vec<u8>,
+    /// Encrypted loan terms (duration, interest, collateral)
+    pub encrypted_terms: Vec<u8>,
+    /// Arcium session key for this loan
+    pub arcium_session_key: Pubkey,
+    /// When the loan was created
+    pub created_at: i64,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl PrivateLoan {
+    pub fn space() -> usize {
+        8 + // discriminator
+        32 + // circle
+        32 + // borrower
+        4 + 256 + // encrypted_amount
+        4 + 512 + // encrypted_terms
+        32 + // arcium_session_key
+        8 + // created_at
+        1 + // bump
+        50 // extra space
+    }
+}
+
+// ============================================================================
+// REFLECT YIELD INTEGRATION
+// ============================================================================
+
+/// Reflect token type
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum ReflectTokenType {
+    USDCPlus,  // Yield-bearing USDC+ with price appreciation
+    USDJ,      // Delta-neutral strategy token with funding rate capture
+}
+
+impl Default for ReflectTokenType {
+    fn default() -> Self {
+        ReflectTokenType::USDCPlus
+    }
+}
+
+/// Dual yield tracking for Reflect + Solend
+/// Tracks yields from both Reflect price appreciation and Solend lending
+#[account]
+pub struct ReflectYieldTracking {
+    /// The circle this tracking belongs to
+    pub circle: Pubkey,
+    /// Amount deposited in USDC+
+    pub usdc_plus_deposited: u64,
+    /// Amount deposited in USDJ
+    pub usdj_deposited: u64,
+    /// Yield earned from Reflect price appreciation
+    pub reflect_yield_earned: u64,
+    /// Yield earned from Solend lending
+    pub solend_yield_earned: u64,
+    /// Last time yield was calculated
+    pub last_yield_calculation: i64,
+    /// Reflect price at time of deposit (for appreciation tracking)
+    pub reflect_price_at_deposit: u64,
+    /// Current Reflect price
+    pub current_reflect_price: u64,
+    /// Token type being used
+    pub token_type: ReflectTokenType,
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl ReflectYieldTracking {
+    pub fn space() -> usize {
+        8 + // discriminator
+        32 + // circle
+        8 + // usdc_plus_deposited
+        8 + // usdj_deposited
+        8 + // reflect_yield_earned
+        8 + // solend_yield_earned
+        8 + // last_yield_calculation
+        8 + // reflect_price_at_deposit
+        8 + // current_reflect_price
+        1 + // token_type
+        1 + // bump
+        50 // extra space
+    }
+
+    /// Calculate total yield from both sources
+    pub fn calculate_total_yield(&self) -> u64 {
+        self.reflect_yield_earned.saturating_add(self.solend_yield_earned)
+    }
+
+    /// Calculate combined APY (returns basis points)
+    pub fn get_combined_apy(&self, time_elapsed_seconds: i64) -> u64 {
+        if time_elapsed_seconds <= 0 {
+            return 0;
+        }
+
+        let total_deposited = self.usdc_plus_deposited.saturating_add(self.usdj_deposited);
+        if total_deposited == 0 {
+            return 0;
+        }
+
+        let total_yield = self.calculate_total_yield();
+
+        // Calculate annualized return
+        let seconds_per_year = 31_536_000_u64; // 365 days
+        let annualized_yield = (total_yield as u128)
+            .saturating_mul(seconds_per_year as u128)
+            .checked_div(time_elapsed_seconds as u128)
+            .unwrap_or(0) as u64;
+
+        // Return APY in basis points (1% = 100 bps)
+        annualized_yield
+            .saturating_mul(10_000)
+            .checked_div(total_deposited)
+            .unwrap_or(0)
+    }
+
+    /// Calculate Reflect-specific APY
+    pub fn get_reflect_apy(&self, time_elapsed_seconds: i64) -> u64 {
+        if time_elapsed_seconds <= 0 || self.reflect_price_at_deposit == 0 {
+            return 0;
+        }
+
+        // Price appreciation percentage
+        let price_increase = self.current_reflect_price.saturating_sub(self.reflect_price_at_deposit);
+        let appreciation_bps = price_increase
+            .saturating_mul(10_000)
+            .checked_div(self.reflect_price_at_deposit)
+            .unwrap_or(0);
+
+        // Annualize the return
+        let seconds_per_year = 31_536_000_u64;
+        appreciation_bps
+            .saturating_mul(seconds_per_year)
+            .checked_div(time_elapsed_seconds as u64)
+            .unwrap_or(0)
+    }
+
+    /// Calculate Solend-specific APY
+    pub fn get_solend_apy(&self, time_elapsed_seconds: i64) -> u64 {
+        if time_elapsed_seconds <= 0 {
+            return 0;
+        }
+
+        let total_deposited = self.usdc_plus_deposited.saturating_add(self.usdj_deposited);
+        if total_deposited == 0 {
+            return 0;
+        }
+
+        let seconds_per_year = 31_536_000_u64;
+        let annualized_yield = (self.solend_yield_earned as u128)
+            .saturating_mul(seconds_per_year as u128)
+            .checked_div(time_elapsed_seconds as u128)
+            .unwrap_or(0) as u64;
+
+        annualized_yield
+            .saturating_mul(10_000)
+            .checked_div(total_deposited)
+            .unwrap_or(0)
     }
 }
