@@ -9,6 +9,8 @@ import {
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { SolendService, createSolendService } from "./solend-service";
 import { HaloProtocolProgram, ProgramId } from "../target/types/halo_protocol";
+import ArciumPrivacyService, { PrivacyMode, TrustScoreData, LoanData, BidData } from "./arcium-service";
+import ReflectYieldService, { ReflectTokenType, YieldBreakdown } from "./reflect-service";
 
 /**
  * Utility functions for interacting with the Halo Protocol with Solend integration
@@ -18,6 +20,8 @@ export class HaloProtocolClient {
   private program: Program<HaloProtocolProgram>;
   private provider: anchor.AnchorProvider;
   private solendService: SolendService | null = null;
+  private arciumService: ArciumPrivacyService | null = null;
+  private reflectService: ReflectYieldService | null = null;
 
   constructor(program: Program<HaloProtocolProgram>) {
     this.program = program;
@@ -1190,6 +1194,296 @@ export class HaloProtocolClient {
       console.error("Failed to get Solend available reserves:", error);
       throw error;
     }
+  }
+
+  // ============================================================================
+  // ARCIUM PRIVACY INTEGRATION
+  // ============================================================================
+
+  /**
+   * Initialize Arcium privacy service for encrypted operations
+   */
+  async initializeArcium(): Promise<void> {
+    try {
+      this.arciumService = new ArciumPrivacyService(this.provider.connection);
+      await this.arciumService.initialize();
+      console.log("✅ Arcium privacy service initialized");
+    } catch (error) {
+      console.error("Failed to initialize Arcium service:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Arcium service instance
+   */
+  getArciumService(): ArciumPrivacyService {
+    if (!this.arciumService) {
+      throw new Error("Arcium service not initialized. Call initializeArcium() first.");
+    }
+    return this.arciumService;
+  }
+
+  /**
+   * Create a private circle with Arcium privacy features
+   */
+  async createPrivateCircle(
+    creator: Keypair,
+    contributionAmount: number,
+    durationMonths: number,
+    maxMembers: number,
+    privacyMode: 'public' | 'anonymous' | 'fully_encrypted'
+  ) {
+    if (!this.arciumService) {
+      throw new Error("Arcium service not initialized. Call initializeArcium() first.");
+    }
+
+    console.log(`Creating ${privacyMode} circle...`);
+
+    // Setup privacy configuration
+    const privacySettings = await this.arciumService.setupCirclePrivacy(
+      creator.publicKey,
+      privacyMode === 'public' ? PrivacyMode.Public :
+      privacyMode === 'anonymous' ? PrivacyMode.Anonymous :
+      PrivacyMode.FullyEncrypted
+    );
+
+    // Create the circle (use existing createCircle method)
+    const circleAccount = await this.createCircle(
+      creator,
+      contributionAmount,
+      durationMonths,
+      maxMembers,
+      100 // default penalty rate
+    );
+
+    console.log(`✅ Private circle created with ${privacyMode} mode`);
+    console.log("Circle account:", circleAccount.circleAccount.toBase58());
+
+    return { circleAccount, privacySettings };
+  }
+
+  /**
+   * Encrypt trust score calculation using Arcium MPC
+   */
+  async encryptTrustScore(trustData: TrustScoreData) {
+    if (!this.arciumService) {
+      throw new Error("Arcium service not initialized. Call initializeArcium() first.");
+    }
+
+    return await this.arciumService.encryptTrustScore(trustData);
+  }
+
+  /**
+   * Create encrypted loan terms for private borrowing
+   */
+  async createPrivateLoan(loanData: LoanData) {
+    if (!this.arciumService) {
+      throw new Error("Arcium service not initialized. Call initializeArcium() first.");
+    }
+
+    return await this.arciumService.encryptLoanTerms(loanData);
+  }
+
+  /**
+   * Place sealed bid in auction (encrypted until reveal)
+   */
+  async placeSealedBid(bidData: BidData) {
+    if (!this.arciumService) {
+      throw new Error("Arcium service not initialized. Call initializeArcium() first.");
+    }
+
+    return await this.arciumService.encryptBid(bidData);
+  }
+
+  /**
+   * Anonymize member in a private circle
+   */
+  async anonymizeMember(
+    memberWallet: PublicKey,
+    memberId: number,
+    stakeAmount?: number
+  ) {
+    if (!this.arciumService) {
+      throw new Error("Arcium service not initialized. Call initializeArcium() first.");
+    }
+
+    return await this.arciumService.anonymizeMember(
+      memberWallet,
+      memberId,
+      stakeAmount
+    );
+  }
+
+  // ============================================================================
+  // REFLECT YIELD INTEGRATION
+  // ============================================================================
+
+  /**
+   * Initialize Reflect yield service for dual yield generation
+   */
+  async initializeReflect(): Promise<void> {
+    try {
+      this.reflectService = new ReflectYieldService(this.provider.connection);
+      await this.reflectService.initialize();
+      console.log("✅ Reflect yield service initialized");
+    } catch (error) {
+      console.error("Failed to initialize Reflect service:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Reflect service instance
+   */
+  getReflectService(): ReflectYieldService {
+    if (!this.reflectService) {
+      throw new Error("Reflect service not initialized. Call initializeReflect() first.");
+    }
+    return this.reflectService;
+  }
+
+  /**
+   * Stake funds to Reflect's USDC+ or USDJ
+   */
+  async stakeWithReflect(
+    amount: number,
+    tokenType: 'USDC+' | 'USDJ',
+    destination: PublicKey,
+    userWallet: PublicKey
+  ): Promise<string> {
+    if (!this.reflectService) {
+      throw new Error("Reflect service not initialized. Call initializeReflect() first.");
+    }
+
+    console.log(`Staking ${amount} to ${tokenType}...`);
+
+    if (tokenType === 'USDC+') {
+      return await this.reflectService.stakeUSDCPlus(amount, destination, userWallet);
+    } else {
+      return await this.reflectService.stakeUSDJ(amount, userWallet);
+    }
+  }
+
+  /**
+   * Get dual yield breakdown (Reflect + Solend)
+   */
+  async getDualYieldBreakdown(
+    amount: number,
+    tokenType: 'USDC+' | 'USDJ' = 'USDC+'
+  ): Promise<YieldBreakdown> {
+    if (!this.reflectService) {
+      throw new Error("Reflect service not initialized. Call initializeReflect() first.");
+    }
+
+    // Get Solend APY if available
+    let solendAPY: number | undefined;
+    if (this.solendService) {
+      try {
+        const reserves = await this.solendService.getReserveStats();
+        const usdcReserve = reserves.find(r => r.symbol === 'USDC');
+        solendAPY = usdcReserve?.supplyAPY || 3.2;
+      } catch (error) {
+        console.warn("Could not fetch Solend APY, using default");
+        solendAPY = 3.2;
+      }
+    }
+
+    const reflectTokenType = tokenType === 'USDC+'
+      ? ReflectTokenType.USDCPlus
+      : ReflectTokenType.USDJ;
+
+    return await this.reflectService.getYieldBreakdown(
+      amount,
+      reflectTokenType,
+      solendAPY
+    );
+  }
+
+  /**
+   * Get price appreciation for Reflect tokens
+   */
+  async getReflectPriceAppreciation(
+    token: 'USDC+' | 'USDJ',
+    period: '24h' | '7d' | '30d' | '1y'
+  ) {
+    if (!this.reflectService) {
+      throw new Error("Reflect service not initialized. Call initializeReflect() first.");
+    }
+
+    const tokenType = token === 'USDC+' ? ReflectTokenType.USDCPlus : ReflectTokenType.USDJ;
+    return await this.reflectService.getPriceAppreciation(tokenType, period);
+  }
+
+  /**
+   * Get available dual yield strategies
+   */
+  async getReflectStrategies() {
+    if (!this.reflectService) {
+      throw new Error("Reflect service not initialized. Call initializeReflect() first.");
+    }
+
+    return await this.reflectService.getAvailableStrategies();
+  }
+
+  /**
+   * Get recommended Reflect strategy based on user profile
+   */
+  async getRecommendedReflectStrategy(params: {
+    riskTolerance: 'low' | 'medium' | 'high';
+    investmentPeriod: 'short' | 'medium' | 'long';
+    amount: number;
+  }) {
+    if (!this.reflectService) {
+      throw new Error("Reflect service not initialized. Call initializeReflect() first.");
+    }
+
+    return await this.reflectService.recommendStrategy(params);
+  }
+
+  /**
+   * Initialize all services (Solend, Arcium, Reflect)
+   */
+  async initializeAllServices(): Promise<void> {
+    console.log("Initializing all Halo Protocol services...");
+
+    await this.initializeSolend();
+    await this.initializeArcium();
+    await this.initializeReflect();
+
+    console.log("✅ All services initialized successfully");
+  }
+
+  /**
+   * Get comprehensive circle analytics including dual yields
+   */
+  async getCircleAnalytics(circleAccount: PublicKey) {
+    const circle = await this.program.account.circle.fetch(circleAccount);
+
+    // Get escrow account
+    const [escrowAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("escrow"), circleAccount.toBuffer()],
+      this.program.programId
+    );
+
+    const escrow = await this.program.account.circleEscrow.fetch(escrowAccount);
+
+    // Calculate dual yields if Reflect is enabled
+    let yieldBreakdown: YieldBreakdown | null = null;
+    if (this.reflectService) {
+      yieldBreakdown = await this.getDualYieldBreakdown(
+        escrow.totalAmount.toNumber()
+      );
+    }
+
+    return {
+      circle,
+      escrow,
+      yieldBreakdown,
+      totalYield: escrow.totalYieldEarned.toNumber(),
+      reflectYield: escrow.reflectYieldEarned?.toNumber() || 0,
+      solendYield: escrow.solendYieldEarned?.toNumber() || 0
+    };
   }
 }
 
