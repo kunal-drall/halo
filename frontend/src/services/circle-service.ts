@@ -24,8 +24,9 @@ export class CircleService {
   async isHealthy(): Promise<boolean> {
     try {
       const connection = this.client.getConnection();
-      const health = await connection.getHealth();
-      return health === 'ok';
+      // Use getVersion as a health check instead of getHealth
+      await connection.getVersion();
+      return true;
     } catch (error) {
       console.error('Circle service health check failed:', error);
       return false;
@@ -40,10 +41,10 @@ export class CircleService {
         throw new Error('Halo Protocol program not initialized');
       }
 
-      const circles = await program.account.circle.all();
+      const circles = await (program.account as any).circle.all();
       
       // Convert to our interface format
-      const formattedCircles: Circle[] = circles.map((account) => {
+      const formattedCircles: Circle[] = circles.map((account: any) => {
         const circle = account.account;
         return {
           id: circle.id.toString(),
@@ -56,8 +57,8 @@ export class CircleService {
           status: this.mapCircleStatus(circle.status),
           payoutMethod: this.mapPayoutMethod(circle.payoutMethod),
           minTrustTier: circle.minTrustTier,
-          members: circle.members.map(m => m.toBase58()),
-          payoutQueue: circle.payoutQueue.map(p => p.toBase58()),
+          members: circle.members.map((m: any) => m.toBase58()),
+          payoutQueue: circle.payoutQueue.map((p: any) => p.toBase58()),
           insurancePool: circle.insurancePool.toBase58(),
           totalYieldEarned: circle.totalYieldEarned.toNumber() / LAMPORTS_PER_SOL,
           nextPayoutRecipient: circle.nextPayoutRecipient?.toBase58(),
@@ -100,7 +101,7 @@ export class CircleService {
       }
 
       const circlePubkey = new PublicKey(circleId);
-      const circle = await program.account.circle.fetch(circlePubkey);
+      const circle = await (program.account as any).circle.fetch(circlePubkey);
       
       return {
         id: circle.id.toString(),
@@ -113,8 +114,8 @@ export class CircleService {
         status: this.mapCircleStatus(circle.status),
         payoutMethod: this.mapPayoutMethod(circle.payoutMethod),
         minTrustTier: circle.minTrustTier,
-        members: circle.members.map(m => m.toBase58()),
-        payoutQueue: circle.payoutQueue.map(p => p.toBase58()),
+        members: circle.members.map((m: any) => m.toBase58()),
+        payoutQueue: circle.payoutQueue.map((p: any) => p.toBase58()),
         insurancePool: circle.insurancePool.toBase58(),
         totalYieldEarned: circle.totalYieldEarned.toNumber() / LAMPORTS_PER_SOL,
         nextPayoutRecipient: circle.nextPayoutRecipient?.toBase58(),
@@ -154,7 +155,7 @@ export class CircleService {
       }
 
       // Get all circles where user is a member
-      const members = await program.account.member.all([
+      const members = await (program.account as any).member.all([
         {
           memcmp: {
             offset: 8, // Skip discriminator

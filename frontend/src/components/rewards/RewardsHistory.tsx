@@ -4,6 +4,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Coins } from 'lucide-react';
+import { Reward } from '@/types/staking';
 
 interface RewardsHistoryProps {
   rewards: Reward[];

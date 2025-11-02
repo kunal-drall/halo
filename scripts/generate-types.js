@@ -8,6 +8,8 @@ function generateTypesFromIdl() {
   // Generate TypeScript types
   let typesContent = `// Generated TypeScript types for Halo Protocol
 // Program ID: ${idl.address}
+import { PublicKey } from "@solana/web3.js";
+import { BN } from "@coral-xyz/anchor";
 
 export type ProgramId = "${idl.address}";
 
@@ -17,6 +19,10 @@ export type ProgramId = "${idl.address}";
   // Generate account types
   if (idl.accounts) {
     idl.accounts.forEach(account => {
+      // Skip if this is just a discriminator entry (no type definition)
+      if (!account.type || !account.type.fields) {
+        return;
+      }
       typesContent += `export type ${account.name} = {\n`;
       account.type.fields.forEach(field => {
         typesContent += `  ${field.name}: ${getTypeScriptType(field.type)};\n`;
@@ -24,6 +30,16 @@ export type ProgramId = "${idl.address}";
       typesContent += `};\n\n`;
     });
   }
+
+  // Add Anchor Program type
+  typesContent += `// Anchor Program Type\n`;
+  typesContent += `export interface HaloProtocolProgram {\n`;
+  typesContent += `  address: "${idl.address}";\n`;
+  typesContent += `  metadata: any;\n`;
+  typesContent += `  instructions: any[];\n`;
+  typesContent += `  accounts: any[];\n`;
+  typesContent += `  types: any[];\n`;
+  typesContent += `}\n\n`;
 
   // Generate instruction types
   typesContent += `// Instruction Types\n`;
@@ -58,9 +74,16 @@ export type ProgramId = "${idl.address}";
     });
   }
 
+  // Ensure the types directory exists
+  const typesDir = path.join(process.cwd(), "target", "types");
+  if (!fs.existsSync(typesDir)) {
+    fs.mkdirSync(typesDir, { recursive: true });
+  }
+
   // Write the types file
-  fs.writeFileSync("target/types/halo_protocol.ts", typesContent);
-  console.log("TypeScript types generated successfully!");
+  const typesPath = path.join(typesDir, "halo_protocol.ts");
+  fs.writeFileSync(typesPath, typesContent);
+  console.log("TypeScript types generated successfully at:", typesPath);
 }
 
 function getTypeScriptType(anchorType) {

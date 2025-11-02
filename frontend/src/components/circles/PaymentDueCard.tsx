@@ -16,7 +16,7 @@ interface PaymentDueCardProps {
 
 export function PaymentDueCard({ payment }: PaymentDueCardProps) {
   const { publicKey } = useWallet();
-  const { addToast } = useToast();
+  const { toast } = useToast();
   const [isPaying, setIsPaying] = useState(false);
 
   const handlePay = async () => {
@@ -29,22 +29,19 @@ export function PaymentDueCard({ payment }: PaymentDueCardProps) {
         publicKey
       );
 
-      addToast({
-        type: 'success',
+      toast({
         title: 'Payment Successful',
         description: `Contributed $${payment.amount} to ${payment.circleName}`,
-        duration: 5000
       });
 
       // Refresh data or update state
       window.location.reload();
     } catch (error) {
       console.error('Error making payment:', error);
-      addToast({
-        type: 'error',
+      toast({
+        variant: 'destructive',
         title: 'Payment Failed',
         description: error instanceof Error ? error.message : 'An error occurred',
-        duration: 7000
       });
     } finally {
       setIsPaying(false);

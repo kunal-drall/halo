@@ -49,13 +49,13 @@ export function ClientDashboard() {
 
   const {
     userScore,
-    currentTier,
+    tier,
     loading: trustLoading,
     fetchTrustScore
   } = useTrustStore();
 
   // Mobile gesture hooks
-  const { onSwipeLeft, onSwipeRight } = useSwipeGesture({
+  const swipeGesture = useSwipeGesture({
     onSwipeLeft: () => {
       // Navigate to next page
       console.log('Swipe left');
@@ -66,7 +66,7 @@ export function ClientDashboard() {
     }
   });
 
-  const { isRefreshing, onRefresh } = usePullToRefresh({
+  const pullToRefresh = usePullToRefresh({
     onRefresh: async () => {
       if (publicKey) {
         await Promise.all([
@@ -79,6 +79,7 @@ export function ClientDashboard() {
       }
     }
   });
+  const { isRefreshing } = pullToRefresh;
 
   // Load data when wallet connects
   useEffect(() => {
@@ -134,7 +135,7 @@ export function ClientDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" {...onSwipeLeft} {...onSwipeRight}>
+    <div className="min-h-screen bg-gray-50" {...swipeGesture.gestureProps} {...pullToRefresh.gestureProps}>
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-md mx-auto px-4 py-4">
@@ -185,7 +186,7 @@ export function ClientDashboard() {
                         Circle: {payout.circleId}
                       </p>
                       <p className="text-sm text-green-600">
-                        Amount: ${(payout.amount || 0).toFixed(2)}
+                        Amount: ${(payout.totalPayout || 0).toFixed(2)}
                       </p>
                     </div>
                     <Button size="sm" className="bg-green-600 hover:bg-green-700">
@@ -210,22 +211,22 @@ export function ClientDashboard() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{userStats.totalCircles || 0}</div>
+                  <div className="text-2xl font-bold text-blue-600">{userStats.circlesJoined || 0}</div>
                   <div className="text-sm text-gray-600">Circles Joined</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">${(userStats.totalContributed || 0).toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-green-600">${(userStats.totalContributions || 0).toFixed(2)}</div>
                   <div className="text-sm text-gray-600">Total Contributed</div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">${(userStats.totalReceived || 0).toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-purple-600">${(userStats.totalPayouts || 0).toFixed(2)}</div>
                   <div className="text-sm text-gray-600">Total Received</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-600">{userStats.onTimePayments || 0}</div>
-                  <div className="text-sm text-gray-600">On-Time Payments</div>
+                  <div className="text-2xl font-bold text-orange-600">{userStats.circlesCompleted || 0}</div>
+                  <div className="text-sm text-gray-600">Circles Completed</div>
                 </div>
               </div>
             </CardContent>

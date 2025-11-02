@@ -115,6 +115,9 @@ export class StakingService {
   ): Promise<string> {
     try {
       const program = this.client.getProgram();
+      if (!program) {
+        throw new Error('Halo Protocol program not initialized');
+      }
       
       // Generate PDAs for the stake account
       const [stakeAccount] = PublicKey.findProgramAddressSync(

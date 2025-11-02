@@ -155,7 +155,7 @@ export function PositionCard({ position, onUnstake }: PositionCardProps) {
             size="sm"
             className="flex-1"
             onClick={() => onUnstake(position.id)}
-            disabled={position.status === 'unlocking' || (position.lockPeriod && !isUnlockable())}
+            disabled={position.status === 'unlocking' || (!!position.lockPeriod && !isUnlockable())}
           >
             <Unlock className="h-4 w-4 mr-2" />
             {position.status === 'unlocking' ? 'Unlocking...' : 'Unstake'}

@@ -5,7 +5,7 @@ import { StakingToken } from '@/types/staking';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Max, Clock } from 'lucide-react';
+import { Maximize2, Clock } from 'lucide-react';
 
 interface StakeFormProps {
   selectedToken: StakingToken | null;
@@ -69,7 +69,7 @@ export function StakeForm({
             className="absolute right-2 top-1/2 -translate-y-1/2"
             onClick={handleMaxClick}
           >
-            <Max className="h-3 w-3 mr-1" />
+            <Maximize2 className="h-3 w-3 mr-1" />
             Max
           </Button>
         </div>
