@@ -234,21 +234,21 @@ export class HaloProtocolClient {
    * Get circle information
    */
   async getCircleInfo(circleAccount: PublicKey) {
-    return await this.program.account.circle.fetch(circleAccount);
+    return await (this.program.account as any).circle.fetch(circleAccount);
   }
 
   /**
    * Get member information
    */
   async getMemberInfo(memberAccount: PublicKey) {
-    return await this.program.account.member.fetch(memberAccount);
+    return await (this.program.account as any).member.fetch(memberAccount);
   }
 
   /**
    * Get escrow information
    */
   async getEscrowInfo(escrowAccount: PublicKey) {
-    return await this.program.account.circleEscrow.fetch(escrowAccount);
+    return await (this.program.account as any).circleEscrow.fetch(escrowAccount);
   }
 
   /**
@@ -411,7 +411,7 @@ export class HaloProtocolClient {
    * Get trust score information
    */
   async getTrustScoreInfo(trustScoreAccount: PublicKey) {
-    return await this.program.account.trustScore.fetch(trustScoreAccount);
+    return await (this.program.account as any).trustScore.fetch(trustScoreAccount);
   }
 
   /**
@@ -527,7 +527,7 @@ export class HaloProtocolClient {
           circlesJoined: trustScoreData.circlesJoined,
           totalContributions: trustScoreData.totalContributions.toString(),
           missedContributions: trustScoreData.missedContributions,
-          socialProofs: trustScoreData.socialProofs.map(proof => ({
+          socialProofs: trustScoreData.socialProofs.map((proof: any) => ({
             type: proof.proofType,
             identifier: proof.identifier,
             verified: proof.verified,
@@ -599,7 +599,7 @@ export class HaloProtocolClient {
     try {
       const trustScoreAccount = this.getTrustScorePDA(userPublicKey);
       const trustScore = await this.getTrustScoreInfo(trustScoreAccount);
-      const circle = await this.program.account.circle.fetch(circleAccount);
+      const circle = await (this.program.account as any).circle.fetch(circleAccount);
 
       const requiredStake = await this.getMinimumStakeRequirement(
         userPublicKey, 
@@ -882,7 +882,7 @@ export class HaloProtocolClient {
    */
   async getAutomationState() {
     const automationStateAccount = this.getAutomationStatePDA();
-    return await this.program.account.automationState.fetch(automationStateAccount);
+    return await (this.program.account as any).automationState.fetch(automationStateAccount);
   }
 
   /**
@@ -890,14 +890,14 @@ export class HaloProtocolClient {
    */
   async getCircleAutomation(circleAccount: PublicKey) {
     const circleAutomationAccount = this.getCircleAutomationPDA(circleAccount);
-    return await this.program.account.circleAutomation.fetch(circleAutomationAccount);
+    return await (this.program.account as any).circleAutomation.fetch(circleAutomationAccount);
   }
 
   /**
    * Get automation event information
    */
   async getAutomationEvent(automationEventAccount: PublicKey) {
-    return await this.program.account.automationEvent.fetch(automationEventAccount);
+    return await (this.program.account as any).automationEvent.fetch(automationEventAccount);
   }
 
   /**

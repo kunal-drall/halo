@@ -108,6 +108,9 @@ export class TransactionService {
   ): Promise<Transaction> {
     try {
       const program = this.client.getProgram();
+      if (!program) {
+        throw new Error('Halo Protocol program not initialized');
+      }
       
       // Generate PDAs
       const [stakeAccount] = PublicKey.findProgramAddressSync(

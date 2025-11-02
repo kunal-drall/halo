@@ -54,11 +54,17 @@ export class SolanaClient {
   private async initializeProgram(programId: string): Promise<void> {
     try {
       const idl = await this.loadIDL(programId);
+      // Program constructor: Program(idl, provider, opts)
+      // If IDL has address field, it will use that, otherwise we pass programId in opts
+      const programIdPubkey = new PublicKey(idl.address || programId);
       this.program = new Program(
         idl as any,
-        new PublicKey(programId),
         this.provider
-      );
+      ) as any;
+      // Set programId explicitly if needed
+      if (this.program) {
+        (this.program as any).programId = programIdPubkey;
+      }
       console.log('✅ Program initialized with full IDL');
     } catch (error) {
       console.error('Error initializing program:', error);
@@ -155,7 +161,7 @@ export class SolanaClient {
       return null;
     }
     try {
-      return await this.program.account.circle.fetch(circleAddress);
+      return await (this.program.account as any).circle.fetch(circleAddress);
     } catch (error) {
       console.error('Error fetching circle:', error);
       return null;
@@ -168,7 +174,7 @@ export class SolanaClient {
       return [];
     }
     try {
-      return await this.program.account.circle.all();
+      return await (this.program.account as any).circle.all();
     } catch (error) {
       console.error('Error fetching circles:', error);
       return [];
@@ -182,7 +188,7 @@ export class SolanaClient {
       return null;
     }
     try {
-      return await this.program.account.member.fetch(memberAddress);
+      return await (this.program.account as any).member.fetch(memberAddress);
     } catch (error) {
       console.error('Error fetching member:', error);
       return null;
@@ -195,7 +201,7 @@ export class SolanaClient {
       return [];
     }
     try {
-      return await this.program.account.member.all([
+      return await (this.program.account as any).member.all([
         {
           memcmp: {
             offset: 8, // Skip discriminator
@@ -216,7 +222,7 @@ export class SolanaClient {
       return null;
     }
     try {
-      return await this.program.account.trustScore.fetch(authority);
+      return await (this.program.account as any).trustScore.fetch(authority);
     } catch (error) {
       console.error('Error fetching trust score:', error);
       return null;
@@ -230,7 +236,7 @@ export class SolanaClient {
       return null;
     }
     try {
-      return await this.program.account.escrow.fetch(escrowAddress);
+      return await (this.program.account as any).escrow.fetch(escrowAddress);
     } catch (error) {
       console.error('Error fetching escrow:', error);
       return null;
@@ -261,8 +267,9 @@ export class SolanaClient {
   // Health check
   async isHealthy(): Promise<boolean> {
     try {
-      const health = await this.connection.getHealth();
-      return health === 'ok';
+      // Use getVersion as a health check instead of getHealth
+      await this.connection.getVersion();
+      return true;
     } catch (error) {
       console.error('Health check failed:', error);
       return false;
@@ -311,7 +318,7 @@ export class SolanaClient {
 
       return { exists: true, hasIdl: false, error: 'IDL not available - using mock data' };
     } catch (error) {
-      return { exists: false, hasIdl: false, error: error.message };
+      return { exists: false, hasIdl: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 }
