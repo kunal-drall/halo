@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PublicKey } from '@solana/web3.js';
+import { queryOne } from '@/lib/db';
 
-/**
- * GET /api/trust-score?user=<publicKey>
- * Get trust score information for a specific user
- */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userAddress = searchParams.get('user');
+    const userAddress = searchParams.get('user') || searchParams.get('address');
 
     if (!userAddress) {
       return NextResponse.json(
@@ -17,7 +14,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Validate the public key format
     let userPubkey: PublicKey;
     try {
       userPubkey = new PublicKey(userAddress);
@@ -28,13 +24,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Initialize client - Note: This would need proper program initialization in production
-    // For now, we'll return mock data that matches the expected structure
-    const mockTrustScore = await getMockTrustScoreData(userPubkey);
+    const trustScore = await getTrustScoreForUser(userPubkey.toBase58());
 
     return NextResponse.json({
       success: true,
-      data: mockTrustScore
+      data: trustScore,
+      trustScore: {
+        user: trustScore.user,
+        paymentReliability: trustScore.breakdown.paymentHistory.percentage,
+        circlesCompleted: trustScore.metadata.circlesCompleted,
+        circlesDefaulted: 0,
+        totalContributionsMade: trustScore.metadata.totalContributions,
+        onTimePayments: Math.floor(trustScore.metadata.totalContributions * 0.9),
+        latePayments: trustScore.metadata.missedContributions,
+        overallScore: trustScore.score,
+        tier: getTierNumber(trustScore.tier),
+        lastUpdated: trustScore.metadata.lastUpdated,
+      }
     });
 
   } catch (error) {
@@ -46,85 +52,130 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * Mock function to simulate trust score data
- * In production, this would use the actual HaloProtocolClient
- */
-async function getMockTrustScoreData(userPubkey: PublicKey) {
-  // Simulate different scores based on user address for demo
-  const addressBytes = userPubkey.toBytes();
-  const scoreVariation = addressBytes[0] % 100;
-  const baseScore = 500 + scoreVariation;
+function getTierNumber(tierName: string): number {
+  switch (tierName) {
+    case 'Platinum': return 3;
+    case 'Gold': return 2;
+    case 'Silver': return 1;
+    default: return 0;
+  }
+}
 
-  const paymentHistoryScore = Math.min(400, Math.floor(baseScore * 0.4));
-  const completionScore = Math.min(300, Math.floor(baseScore * 0.3));
-  const defiActivityScore = Math.min(200, Math.floor(baseScore * 0.2));
-  const socialProofScore = Math.min(100, Math.floor(baseScore * 0.1));
+function getTierName(tier: number): string {
+  switch (tier) {
+    case 3: return 'Platinum';
+    case 2: return 'Gold';
+    case 1: return 'Silver';
+    default: return 'Newcomer';
+  }
+}
 
-  const totalScore = paymentHistoryScore + completionScore + defiActivityScore + socialProofScore;
+function getStakeMultiplier(tier: number): number {
+  switch (tier) {
+    case 3: return 75;
+    case 2: return 100;
+    case 1: return 150;
+    default: return 200;
+  }
+}
 
-  let tier: string;
-  let stakeMultiplier: number;
+async function getTrustScoreForUser(pubkey: string) {
+  const user = await queryOne<any>(
+    'SELECT * FROM users WHERE pubkey = $1',
+    [pubkey]
+  );
   
-  if (totalScore >= 750) {
-    tier = 'Platinum';
-    stakeMultiplier = 75;
-  } else if (totalScore >= 500) {
-    tier = 'Gold';
-    stakeMultiplier = 100;
-  } else if (totalScore >= 250) {
-    tier = 'Silver';
-    stakeMultiplier = 150;
-  } else {
-    tier = 'Newcomer';
-    stakeMultiplier = 200;
+  if (user) {
+    const score = user.trust_score || 100;
+    const tier = user.trust_tier || 0;
+    const tierName = getTierName(tier);
+    
+    const paymentHistoryScore = Math.min(400, Math.floor(score * 0.4));
+    const completionScore = Math.min(300, Math.floor(score * 0.3));
+    const defiActivityScore = Math.min(200, Math.floor(score * 0.2));
+    const socialProofScore = Math.min(100, Math.floor(score * 0.1));
+    
+    return {
+      user: pubkey,
+      score,
+      tier: tierName,
+      stakeMultiplier: getStakeMultiplier(tier),
+      breakdown: {
+        paymentHistory: {
+          score: paymentHistoryScore,
+          maxScore: 400,
+          weight: 40,
+          percentage: Math.round((paymentHistoryScore / 400) * 100)
+        },
+        circleCompletions: {
+          score: completionScore,
+          maxScore: 300,
+          weight: 30,
+          percentage: Math.round((completionScore / 300) * 100)
+        },
+        defiActivity: {
+          score: defiActivityScore,
+          maxScore: 200,
+          weight: 20,
+          percentage: Math.round((defiActivityScore / 200) * 100)
+        },
+        socialProofs: {
+          score: socialProofScore,
+          maxScore: 100,
+          weight: 10,
+          percentage: Math.round((socialProofScore / 100) * 100)
+        }
+      },
+      metadata: {
+        circlesCompleted: user.circles_completed || 0,
+        circlesJoined: user.circles_completed || 0,
+        totalContributions: user.total_contributions || 0,
+        missedContributions: user.late_payments || 0,
+        socialProofs: [],
+        lastUpdated: user.updated_at ? new Date(user.updated_at).getTime() : Date.now()
+      }
+    };
   }
 
+  const baseScore = 100;
   return {
-    user: userPubkey.toString(),
-    score: totalScore,
-    tier,
-    stakeMultiplier,
+    user: pubkey,
+    score: baseScore,
+    tier: 'Newcomer',
+    stakeMultiplier: 200,
     breakdown: {
       paymentHistory: {
-        score: paymentHistoryScore,
+        score: 40,
         maxScore: 400,
         weight: 40,
-        percentage: Math.round((paymentHistoryScore / 400) * 100)
+        percentage: 10
       },
       circleCompletions: {
-        score: completionScore,
+        score: 30,
         maxScore: 300,
         weight: 30,
-        percentage: Math.round((completionScore / 300) * 100)
+        percentage: 10
       },
       defiActivity: {
-        score: defiActivityScore,
+        score: 20,
         maxScore: 200,
         weight: 20,
-        percentage: Math.round((defiActivityScore / 200) * 100)
+        percentage: 10
       },
       socialProofs: {
-        score: socialProofScore,
+        score: 10,
         maxScore: 100,
         weight: 10,
-        percentage: Math.round((socialProofScore / 100) * 100)
+        percentage: 10
       }
     },
     metadata: {
-      circlesCompleted: Math.floor(scoreVariation / 10),
-      circlesJoined: Math.floor(scoreVariation / 8),
-      totalContributions: scoreVariation * 1000,
-      missedContributions: Math.max(0, Math.floor((100 - scoreVariation) / 20)),
-      socialProofs: [
-        {
-          type: 'Twitter',
-          identifier: '@user' + scoreVariation,
-          verified: scoreVariation > 50,
-          timestamp: Date.now() - (scoreVariation * 1000000)
-        }
-      ],
-      lastUpdated: Date.now() - (scoreVariation * 10000)
+      circlesCompleted: 0,
+      circlesJoined: 0,
+      totalContributions: 0,
+      missedContributions: 0,
+      socialProofs: [],
+      lastUpdated: Date.now()
     }
   };
 }

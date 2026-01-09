@@ -45,23 +45,39 @@ export const useTrustStore = create<TrustStore>()(
 
         set({ loading: true, error: null });
         try {
-          // Mock trust score data - in real app, would fetch from smart contract
-          const mockScore: TrustScore = {
+          // Try to fetch from API
+          const response = await fetch(`/api/trust-score?address=${userAddress.toBase58()}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.trustScore) {
+              set({ 
+                userScore: data.trustScore,
+                tier: data.trustScore.tier,
+                loading: false, 
+                lastFetch: now 
+              });
+              return;
+            }
+          }
+
+          // Fallback to default trust score for new users
+          const defaultScore: TrustScore = {
             user: userAddress.toBase58(),
-            paymentReliability: 95,
-            circlesCompleted: 2,
+            paymentReliability: 0,
+            circlesCompleted: 0,
             circlesDefaulted: 0,
-            totalContributionsMade: 8,
-            onTimePayments: 7,
-            latePayments: 1,
-            overallScore: 650,
-            tier: TrustTier.Silver,
+            totalContributionsMade: 0,
+            onTimePayments: 0,
+            latePayments: 0,
+            overallScore: 100,
+            tier: TrustTier.Newcomer,
             lastUpdated: now,
           };
 
           set({ 
-            userScore: mockScore,
-            tier: mockScore.tier,
+            userScore: defaultScore,
+            tier: defaultScore.tier,
             loading: false, 
             lastFetch: now 
           });

@@ -1,12 +1,12 @@
-[features]
-seeds = false
-skip-lint = false
-
 [toolchain]
 anchor_version = "0.30.1"
 
+[features]
+resolution = true
+skip-lint = false
+
 [programs.devnet]
-halo_protocol = "9KmMjZrsvTdRnfr2dZerby2d5f6tjyPZwViweQxV2FnR"
+halo_protocol = "58Fg8uB36CJwb9gqGxSwmR8RYBWrXMwFbTRuW1694qcd"
 
 [registry]
 url = "https://api.apr.dev"
