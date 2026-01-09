@@ -1,9 +1,11 @@
 modules = ["nodejs-20", "rust-stable", "bash", "web"]
 [agent]
 expertMode = true
+integrations = ["javascript_database:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["solana-cli", "anchor"]
 
 [workflows]
 runButton = "Project"
@@ -37,3 +39,10 @@ externalPort = 80
 deploymentTarget = "autoscale"
 run = ["npm", "run", "start", "--prefix", "frontend", "--", "-p", "5000"]
 build = ["npm", "run", "build", "--prefix", "frontend"]
+
+[userenv]
+
+[userenv.shared]
+NEXT_PUBLIC_SOLANA_NETWORK = "devnet"
+NEXT_PUBLIC_RPC_ENDPOINT = "https://api.devnet.solana.com"
+NEXT_PUBLIC_PROGRAM_ID = "58Fg8uB36CJwb9gqGxSwmR8RYBWrXMwFbTRuW1694qcd"

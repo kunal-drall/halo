@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Loading } from '@/components/ui/loading'
+import { useCircleStore } from '@/stores/circleStore'
 import { 
   Users, 
   Coins, 
@@ -15,7 +17,8 @@ import {
   ArrowRight,
   Wallet,
   Star,
-  Shield
+  Shield,
+  RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -23,6 +26,20 @@ export default function CirclesPage() {
   const { authenticated } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
+  
+  const { 
+    availableCircles, 
+    loading, 
+    error, 
+    fetchAvailableCircles,
+    clearCache 
+  } = useCircleStore()
+
+  useEffect(() => {
+    if (authenticated) {
+      fetchAvailableCircles()
+    }
+  }, [authenticated, fetchAvailableCircles])
 
   if (!authenticated) {
     return (
@@ -45,94 +62,28 @@ export default function CirclesPage() {
     )
   }
 
-  // Mock data for demonstration
-  const circles = [
-    {
-      id: '1',
-      name: 'Tech Professionals Circle',
-      description: 'A savings circle for professionals in the technology industry',
-      contributionAmount: 500,
-      currentMembers: 8,
-      maxMembers: 10,
-      durationMonths: 12,
-      currentMonth: 3,
-      status: 'active' as const,
-      nextContribution: '2024-02-01',
-      penaltyRate: 10,
-      yieldRate: 4.2,
-      creatorTrustScore: 850,
-      minTrustScore: 600,
-      tags: ['Tech', 'Professional', 'High Value']
-    },
-    {
-      id: '2',
-      name: 'Community Builders',
-      description: 'Building wealth together in our local community',
-      contributionAmount: 250,
-      currentMembers: 12,
-      maxMembers: 12,
-      durationMonths: 8,
-      currentMonth: 4,
-      status: 'full' as const,
-      nextContribution: '2024-02-15',
-      penaltyRate: 5,
-      yieldRate: 3.8,
-      creatorTrustScore: 720,
-      minTrustScore: 400,
-      tags: ['Community', 'Local', 'Beginner Friendly']
-    },
-    {
-      id: '3',
-      name: 'Crypto Enthusiasts',
-      description: 'For those passionate about cryptocurrency and DeFi',
-      contributionAmount: 1000,
-      currentMembers: 5,
-      maxMembers: 8,
-      durationMonths: 6,
-      currentMonth: 1,
-      status: 'active' as const,
-      nextContribution: '2024-01-28',
-      penaltyRate: 15,
-      yieldRate: 5.5,
-      creatorTrustScore: 920,
-      minTrustScore: 700,
-      tags: ['Crypto', 'DeFi', 'Advanced']
-    },
-    {
-      id: '4',
-      name: 'Small Business Support',
-      description: 'Supporting small business owners with rotating credit',
-      contributionAmount: 750,
-      currentMembers: 6,
-      maxMembers: 10,
-      durationMonths: 10,
-      currentMonth: 2,
-      status: 'active' as const,
-      nextContribution: '2024-02-10',
-      penaltyRate: 12,
-      yieldRate: 4.0,
-      creatorTrustScore: 780,
-      minTrustScore: 550,
-      tags: ['Business', 'Entrepreneurship', 'Growth']
-    },
-    {
-      id: '5',
-      name: 'Students & Graduates',
-      description: 'A beginner-friendly circle for students starting their savings journey',
-      contributionAmount: 100,
-      currentMembers: 15,
-      maxMembers: 20,
-      durationMonths: 12,
-      currentMonth: 6,
-      status: 'active' as const,
-      nextContribution: '2024-02-05',
-      penaltyRate: 8,
-      yieldRate: 3.2,
-      creatorTrustScore: 650,
-      minTrustScore: 300,
-      tags: ['Students', 'Beginner', 'Low Risk']
-    }
-  ]
+  const handleRefresh = () => {
+    clearCache()
+    fetchAvailableCircles()
+  }
+
+  const circles = availableCircles.map(circle => ({
+    id: circle.id,
+    name: `Circle ${circle.id.slice(0, 8)}`,
+    description: `${circle.circleType} circle with ${circle.payoutMethod} payout`,
+    contributionAmount: circle.contributionAmount,
+    currentMembers: circle.currentMembers || 0,
+    maxMembers: circle.maxMembers,
+    durationMonths: circle.durationMonths,
+    currentMonth: circle.currentRound,
+    status: circle.status.toLowerCase() as 'active' | 'full' | 'completed' | 'paused',
+    nextContribution: new Date(circle.createdAt + (circle.currentRound * 30 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
+    penaltyRate: circle.penaltyRate,
+    yieldRate: circle.totalYieldEarned > 0 ? (circle.totalYieldEarned / (circle.totalPot || 1)) * 100 : 4.2,
+    creatorTrustScore: 650,
+    minTrustScore: circle.minTrustTier * 200,
+    tags: [circle.circleType, circle.payoutMethod, circle.isPublic ? 'Public' : 'Private']
+  }))
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -192,6 +143,16 @@ export default function CirclesPage() {
           </p>
         </div>
 
+        {/* Error State */}
+        {error && (
+          <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+            <Button variant="link" onClick={handleRefresh} className="ml-2 text-red-700 underline">
+              Try again
+            </Button>
+          </div>
+        )}
+
         {/* Search and Filters */}
         <div className="mb-8 flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
@@ -215,8 +176,18 @@ export default function CirclesPage() {
               <option value="full">Full</option>
               <option value="completed">Completed</option>
             </select>
+            <Button variant="outline" size="icon" onClick={handleRefresh} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
         </div>
+
+        {/* Loading State */}
+        {loading && circles.length === 0 && (
+          <div className="flex justify-center py-12">
+            <Loading />
+          </div>
+        )}
 
         {/* Circles Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
