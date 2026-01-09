@@ -73,24 +73,32 @@ export class SolanaClient {
   }
 
   async loadIDL(programId: string): Promise<any> {
-    try {
-      // Try to fetch from public directory
-      const response = await fetch('/halo_protocol.json');
-      if (response.ok) {
-        const fullIdl = await response.json();
-        if (fullIdl && fullIdl.instructions && fullIdl.instructions.length > 0) {
-          console.log('✅ Loaded full IDL from public directory');
-          return fullIdl;
+    if (typeof window !== 'undefined') {
+      try {
+        const response = await fetch('/halo_protocol.json');
+        if (response.ok) {
+          const fullIdl = await response.json();
+          if (fullIdl && fullIdl.instructions && fullIdl.instructions.length > 0) {
+            console.log('✅ Loaded full IDL from public directory');
+            return fullIdl;
+          }
         }
+      } catch (error) {
+        console.log('Could not load IDL from public directory:', error);
       }
-    } catch (error) {
-      console.log('Could not load IDL from public directory:', error);
     }
     
-    // Fallback to minimal IDL
+    // Fallback to minimal IDL with address
+    const fallbackProgramId = process.env.NEXT_PUBLIC_PROGRAM_ID || '58Fg8uB36CJwb9gqGxSwmR8RYBWrXMwFbTRuW1694qcd';
     return {
+      "address": fallbackProgramId,
       "version": "0.1.0",
       "name": "halo_protocol",
+      "metadata": {
+        "name": "halo_protocol",
+        "version": "0.1.0",
+        "spec": "0.1.0"
+      },
       "instructions": [
         {
           "name": "initializeCircle",
