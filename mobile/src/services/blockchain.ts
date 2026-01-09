@@ -84,17 +84,7 @@ class BlockchainService {
         circleAccount.toBuffer(),
       ]);
 
-      // TODO: Call actual program instruction
-      // const tx = await this.program.methods
-      //   .createCircle(params.totalAmount, params.duration, params.maxMembers)
-      //   .accounts({
-      //     circle: circleAccount,
-      //     escrow: escrowAccount,
-      //     creator: params.creator,
-      //     systemProgram: SystemProgram.programId,
-      //   })
-      //   .rpc();
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       const tx = 'mock_create_circle_' + Date.now();
       console.log('Circle created:', tx);
 
@@ -118,17 +108,7 @@ class BlockchainService {
         params.member.toBuffer(),
       ]);
 
-      // TODO: Call actual program instruction
-      // const tx = await this.program.methods
-      //   .joinCircle(params.contribution, params.anonymous || false)
-      //   .accounts({
-      //     circle: params.circle,
-      //     member: memberAccount,
-      //     memberAuthority: params.member,
-      //     systemProgram: SystemProgram.programId,
-      //   })
-      //   .rpc();
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       const tx = 'mock_join_circle_' + Date.now();
       console.log('Joined circle:', tx);
 
@@ -153,17 +133,7 @@ class BlockchainService {
         Buffer.from(Date.now().toString()),
       ]);
 
-      // TODO: Call actual program instruction
-      // const tx = await this.program.methods
-      //   .borrow(params.amount, params.duration, params.privacyEnabled || false)
-      //   .accounts({
-      //     circle: params.circle,
-      //     loan: loanAccount,
-      //     borrower: params.borrower,
-      //     systemProgram: SystemProgram.programId,
-      //   })
-      //   .rpc();
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       const tx = 'mock_borrow_' + Date.now();
       console.log('Loan created:', tx);
 
@@ -181,15 +151,7 @@ class BlockchainService {
     }
 
     try {
-      // TODO: Call actual program instruction
-      // const tx = await this.program.methods
-      //   .repayLoan(amount)
-      //   .accounts({
-      //     loan: loanAccount,
-      //     systemProgram: SystemProgram.programId,
-      //   })
-      //   .rpc();
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       const tx = 'mock_repay_' + Date.now();
       console.log('Loan repaid:', tx);
 
@@ -212,12 +174,7 @@ class BlockchainService {
         params.destination.toBuffer(),
       ]);
 
-      // TODO: Call actual program instruction with Reflect integration
-      // This would involve:
-      // 1. Minting Reflect tokens (USDC+ or USDJ)
-      // 2. Creating yield tracking account
-      // 3. Depositing into Solend for additional yield
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       const tx = 'mock_stake_reflect_' + Date.now();
       console.log('Staked with Reflect:', tx);
 
@@ -235,12 +192,7 @@ class BlockchainService {
     }
 
     try {
-      // TODO: Call actual program instruction
-      // This would involve:
-      // 1. Withdrawing from Solend
-      // 2. Burning Reflect tokens
-      // 3. Claiming accumulated yield
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       const tx = 'mock_unstake_reflect_' + Date.now();
       console.log('Unstaked from Reflect:', tx);
 
@@ -267,9 +219,7 @@ class BlockchainService {
         member.toBuffer(),
       ]);
 
-      // TODO: Call actual program instruction
-      // If encrypted, this would involve Arcium MPC computation
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       const tx = 'mock_update_trust_score_' + Date.now();
       console.log('Trust score updated:', tx);
 
@@ -287,10 +237,7 @@ class BlockchainService {
     }
 
     try {
-      // TODO: Fetch actual account
-      // const circle = await this.program.account.circle.fetch(circlePublicKey);
-      // return circle;
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       return {
         creator: new PublicKey('11111111111111111111111111111111'),
         totalAmount: new BN(1000),
@@ -314,10 +261,7 @@ class BlockchainService {
     }
 
     try {
-      // TODO: Fetch actual account
-      // const member = await this.program.account.member.fetch(memberPublicKey);
-      // return member;
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       return {
         circle: new PublicKey('11111111111111111111111111111111'),
         authority: new PublicKey('11111111111111111111111111111111'),
@@ -339,10 +283,7 @@ class BlockchainService {
     }
 
     try {
-      // TODO: Fetch actual account
-      // const yieldTracking = await this.program.account.reflectYieldTracking.fetch(yieldTrackingPublicKey);
-      // return yieldTracking;
-
+      // Mock implementation - see GitHub issue #15 for production implementation
       return {
         circle: new PublicKey('11111111111111111111111111111111'),
         usdcPlusDeposited: new BN(1000),

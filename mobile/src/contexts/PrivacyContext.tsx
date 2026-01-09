@@ -131,8 +131,7 @@ export const PrivacyProvider: React.FC<PrivacyProviderProps> = ({ children }) =>
     setError(null);
 
     try {
-      // TODO: Initialize real Arcium SDK
-      // For now, mock initialization
+      // Mock implementation - see GitHub issue #13 for production implementation
       console.log('Initializing Arcium privacy layer...');
 
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -156,8 +155,7 @@ export const PrivacyProvider: React.FC<PrivacyProviderProps> = ({ children }) =>
     setError(null);
 
     try {
-      // TODO: Fetch from program
-      // For now, mock data
+      // Mock implementation - see GitHub issue #13 for production implementation
       const mockScore: EncryptedTrustScore = {
         publicKey: new PublicKey('11111111111111111111111111111111'),
         encryptedScore: 'encrypted_trust_score_data',
@@ -184,7 +182,7 @@ export const PrivacyProvider: React.FC<PrivacyProviderProps> = ({ children }) =>
     setError(null);
 
     try {
-      // TODO: Call program instruction
+      // Mock implementation - see GitHub issue #13 for production implementation
       console.log('Updating trust score:', score);
 
       // If encryption enabled, encrypt first
@@ -211,8 +209,7 @@ export const PrivacyProvider: React.FC<PrivacyProviderProps> = ({ children }) =>
     setError(null);
 
     try {
-      // TODO: Fetch from program
-      // For now, mock data
+      // Mock implementation - see GitHub issue #13 for production implementation
       const mockCircles: PrivateCircle[] = [
         {
           circleId: 'circle_1',
@@ -256,8 +253,7 @@ export const PrivacyProvider: React.FC<PrivacyProviderProps> = ({ children }) =>
     try {
       console.log('Creating private circle with params:', params);
 
-      // TODO: Call program instruction
-      // For now, mock response
+      // Mock implementation - see GitHub issue #13 for production implementation
       const circleId = `circle_${Date.now()}`;
 
       await fetchPrivateCircles();
@@ -279,7 +275,7 @@ export const PrivacyProvider: React.FC<PrivacyProviderProps> = ({ children }) =>
     }
 
     try {
-      // TODO: Use real Arcium encryption
+      // Mock implementation - see GitHub issue #13 for production implementation
       const encrypted = Buffer.from(JSON.stringify(data)).toString('base64');
       return encrypted;
     } catch (error) {
@@ -295,7 +291,7 @@ export const PrivacyProvider: React.FC<PrivacyProviderProps> = ({ children }) =>
     }
 
     try {
-      // TODO: Use real Arcium decryption
+      // Mock implementation - see GitHub issue #13 for production implementation
       const decrypted = JSON.parse(Buffer.from(encrypted, 'base64').toString());
       return decrypted;
     } catch (error) {

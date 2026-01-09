@@ -124,7 +124,7 @@ export const YieldProvider: React.FC<YieldProviderProps> = ({ children }) => {
     setError(null);
 
     try {
-      // TODO: Initialize real Reflect SDK
+      // Mock implementation - see GitHub issue #14 for production implementation
       console.log('Initializing Reflect yield layer...');
 
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -148,8 +148,7 @@ export const YieldProvider: React.FC<YieldProviderProps> = ({ children }) => {
     setError(null);
 
     try {
-      // TODO: Fetch from program
-      // For now, mock data
+      // Mock implementation - see GitHub issue #14 for production implementation
       const mockPositions: StakedPosition[] = [
         {
           id: 'pos_1',
@@ -193,7 +192,7 @@ export const YieldProvider: React.FC<YieldProviderProps> = ({ children }) => {
     setError(null);
 
     try {
-      // TODO: Fetch real yields from Reflect and Solend
+      // Mock implementation - see GitHub issue #14 for production implementation
       const reflectAPY = tokenType === ReflectTokenType.USDCPlus ? 4.5 : 6.8;
       const solendAPY = 3.2;
       const totalAPY = reflectAPY + solendAPY;
@@ -246,7 +245,7 @@ export const YieldProvider: React.FC<YieldProviderProps> = ({ children }) => {
     try {
       console.log('Staking USDC+:', amount);
 
-      // TODO: Call program instruction with Reflect integration
+      // Mock implementation - see GitHub issue #14 for production implementation
       const txId = 'mock_tx_' + Date.now();
 
       await fetchPositions();
@@ -277,7 +276,7 @@ export const YieldProvider: React.FC<YieldProviderProps> = ({ children }) => {
     try {
       console.log('Staking USDJ:', amount);
 
-      // TODO: Call program instruction with Reflect integration
+      // Mock implementation - see GitHub issue #14 for production implementation
       const txId = 'mock_tx_' + Date.now();
 
       await fetchPositions();
@@ -304,7 +303,7 @@ export const YieldProvider: React.FC<YieldProviderProps> = ({ children }) => {
     try {
       console.log('Unstaking position:', positionId);
 
-      // TODO: Call program instruction
+      // Mock implementation - see GitHub issue #14 for production implementation
       await fetchPositions();
     } catch (error) {
       console.error('Failed to unstake:', error);
@@ -329,7 +328,7 @@ export const YieldProvider: React.FC<YieldProviderProps> = ({ children }) => {
     if (!reflectInitialized) return;
 
     try {
-      // TODO: Fetch latest Reflect token prices
+      // Mock implementation - see GitHub issue #14 for production implementation
       console.log('Refreshing Reflect prices...');
       await fetchPositions();
     } catch (error) {

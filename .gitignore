@@ -55,6 +55,10 @@ tmp/
 temp/
 *.tmp
 *.temp
+*.bak
+
+# Binary artifacts
+*.so
 
 # Rust
 Cargo.lock
