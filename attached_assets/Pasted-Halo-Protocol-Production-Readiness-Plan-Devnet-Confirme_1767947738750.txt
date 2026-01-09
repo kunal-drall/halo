@@ -1,0 +1,317 @@
+Halo Protocol - Production Readiness Plan (Devnet)
+
+ Confirmed Scope
+
+ Integrations: Solend + Switchboard (defer Reflect/Arcium)
+ Infrastructure: Helius indexer + PostgreSQL
+ Automation: Full Switchboard automation
+
+ ---
+ Executive Summary
+
+ The Halo Protocol is a comprehensive ROSCA (lending circles) platform with ~4,700 lines of Rust smart contract
+ code and a Next.js frontend. Current state:
+ - Program not deployed (no build artifacts)
+ - All external integrations are mocked
+ - Frontend uses hardcoded mock data
+ - No indexer or database
+
+ Current Readiness: ~40% → Target: 100% Devnet Production
+
+ ---
+ Phase 1: Smart Contract Deployment (CRITICAL)
+
+ 1.1 Build and Deploy Program
+
+ Status: NOT DEPLOYED (no target/ directory exists)
+
+ # Required steps:
+ anchor build
+ anchor deploy --provider.cluster devnet
+ anchor idl init --filepath target/idl/halo_protocol.json <PROGRAM_ID>
+
+ Files:
+ - programs/halo-protocol/src/lib.rs - Program ID: 9KmMjZrsvTdRnfr2dZerby2d5f6tjyPZwViweQxV2FnR
+ - Anchor.toml - Network configuration
+
+ Deliverables:
+ - target/deploy/halo_protocol.so - Compiled program
+ - target/idl/halo_protocol.json - IDL file
+ - On-chain IDL initialization
+ - Verified deployment on Solana Explorer
+
+ 1.2 Initialize Global Accounts
+
+ After deployment, initialize required singleton accounts:
+ - Treasury account (initialize_treasury)
+ - Revenue params (initialize_revenue_params)
+ - Automation state (initialize_automation_state)
+
+ ---
+ Phase 2: Replace Mock Data with Real Blockchain Calls
+
+ 2.1 Frontend Components with Hardcoded Data
+
+ | File                                       | Lines  | What's Mocked                       | Fix
+               |
+ |--------------------------------------------|--------|-------------------------------------|---------------------
+ --------------|
+ | frontend/src/app/circles/page.tsx          | 48-135 | 5 hardcoded circles                 | Use
+ circleService.getAllCircles() |
+ | frontend/src/app/trust-score/page.tsx      | 52-126 | Trust score, social proofs, history | Use
+ trustStore.fetchTrustScore()  |
+ | frontend/src/app/dashboard/page.tsx        | 59-71  | User stats, activity                | Use stores
+               |
+ | frontend/src/components/TrustScoreCard.tsx | 9-18   | Trust score object                  | Use trustStore
+               |
+ | frontend/src/components/CirclesList.tsx    | 10-54  | 3 hardcoded circles                 | Use circleStore
+               |
+
+ 2.2 API Routes Returning Mock Data
+
+ | File                                                | Function                | Fix
+   |
+ |-----------------------------------------------------|-------------------------|---------------------------------
+ --|
+ | frontend/src/app/api/trust-score/route.ts           | getMockTrustScoreData() | Query on-chain TrustScore
+ account |
+ | frontend/src/app/api/trust-score/batch/route.ts     | Same mock function      | Batch query accounts
+   |
+ | frontend/src/app/api/trust-score/analytics/route.ts | generateMockAnalytics() | Aggregate from indexer/database
+   |
+
+ 2.3 Circle Service Mock Fallback
+
+ File: frontend/src/services/circle-service.ts
+ - Lines 145-224: Falls back to localStorage when IDL unavailable
+ - Fix: Ensure IDL is always available after deployment
+
+ 2.4 Trust Store Mock Data
+
+ File: frontend/src/stores/trustStore.ts
+ - Lines 48-60: Returns hardcoded mock trust score
+ - Fix: Query real TrustScore PDA from blockchain
+
+ ---
+ Phase 3: External Protocol Integrations
+
+ 3.1 Solend Integration (FULLY MOCKED)
+
+ File: app/solend-service.ts (413 lines - ALL MOCK)
+
+ Current State:
+ - createMockMarket() returns fake data
+ - All transactions return "mock_deposit_signature_" + Date.now()
+ - Hardcoded APYs: USDC 5.42%, SOL 3.21%
+
+ Required Changes:
+ 1. Replace mock with real @solendprotocol/solend-sdk calls
+ 2. Configure real devnet reserve addresses:
+   - USDC Reserve: Get from Solend devnet
+   - SOL Reserve: Get from Solend devnet
+ 3. Implement actual CPI calls in smart contract (yield_integration.rs)
+ 4. Add error handling for failed deposits/withdrawals
+
+ Smart Contract Changes:
+ - programs/halo-protocol/src/yield_integration.rs - Add real Solend CPI
+
+ 3.2 Reflect Integration - DEFERRED
+
+ Status: Skip for MVP (unclear devnet support)
+ - Keep mock service as placeholder
+ - Can add later when SDK available
+
+ 3.3 Arcium Privacy - DEFERRED
+
+ Status: Skip for MVP
+ - Keep mock service as placeholder
+ - Privacy features as future enhancement
+
+ ---
+ Phase 4: Oracle Integration
+
+ 4.1 Switchboard Automation
+
+ Current: Callback instruction exists but minimal logic
+
+ Required:
+ - Configure Switchboard queue account address
+ - Implement proper callback validation
+ - Set up automation schedules for:
+   - Contribution collection
+   - Payout distribution
+   - Penalty enforcement
+
+ 4.2 Price Feeds (Optional for MVP)
+
+ Required for liquidation/collateral:
+ - Pyth or Switchboard price feeds for USDC/SOL
+ - Integrate into collateral ratio calculations
+
+ ---
+ Phase 5: Infrastructure & Database (CONFIRMED)
+
+ 5.1 Helius Indexer Setup
+
+ - Create Helius account and get API key
+ - Configure webhook for program account changes
+ - Set up event parsing for:
+   - Circle creation/updates
+   - Member joins/contributions
+   - Payout distributions
+   - Trust score changes
+
+ 5.2 PostgreSQL Database
+
+ Schema needed:
+ -- Cached circle data (denormalized from chain)
+ circles (id, pubkey, name, status, contribution_amount, member_count, ...)
+
+ -- User profiles and stats
+ users (pubkey, trust_score, circles_completed, total_contributions, ...)
+
+ -- Transaction history
+ transactions (signature, type, circle_id, user_pubkey, amount, timestamp)
+
+ -- Analytics aggregations
+ analytics (period, total_circles, total_volume, avg_trust_score, ...)
+
+ 5.3 Required Environment Variables
+
+ # Solana
+ NEXT_PUBLIC_SOLANA_NETWORK=devnet
+ NEXT_PUBLIC_RPC_ENDPOINT=https://api.devnet.solana.com
+ NEXT_PUBLIC_PROGRAM_ID=9KmMjZrsvTdRnfr2dZerby2d5f6tjyPZwViweQxV2FnR
+
+ # Helius
+ HELIUS_API_KEY=<your-api-key>
+ HELIUS_WEBHOOK_SECRET=<webhook-secret>
+
+ # Solend Devnet
+ NEXT_PUBLIC_SOLEND_MARKET=<devnet-market-address>
+
+ # Switchboard
+ SWITCHBOARD_QUEUE=<devnet-queue-address>
+
+ # Database
+ DATABASE_URL=postgresql://user:pass@host:5432/halo
+
+ ---
+ Phase 6: Testing & Verification
+
+ 6.1 Smart Contract Tests
+
+ - Run existing Anchor tests: anchor test
+ - Add integration tests with real Solend devnet
+ - Test full ROSCA cycle end-to-end
+
+ 6.2 Frontend Integration Tests
+
+ - Test wallet connection flow
+ - Test circle creation with real transactions
+ - Test contribution flow
+ - Test payout claiming
+
+ 6.3 Deployment Verification
+
+ - Verify program on Solana Explorer
+ - Test IDL fetch: anchor idl fetch <PROGRAM_ID>
+ - Verify all PDAs derivable
+
+ ---
+ Implementation Priority Order
+
+ Week 1: Core Deployment
+
+ 1. Build and deploy smart contract
+ 2. Initialize on-chain IDL
+ 3. Initialize global accounts (Treasury, RevenueParams)
+ 4. Update frontend to use deployed program
+
+ Week 2: Remove Mock Data
+
+ 1. Replace hardcoded circles with real queries
+ 2. Replace mock trust scores with real queries
+ 3. Fix circle-service localStorage fallback
+ 4. Update API routes to query blockchain
+
+ Week 3: External Integrations
+
+ 1. Implement real Solend integration
+ 2. Configure Switchboard automation (or defer)
+ 3. Decide on Reflect/Arcium (defer or implement)
+
+ Week 4: Testing & Polish
+
+ 1. End-to-end testing
+ 2. Error handling improvements
+ 3. Performance optimization
+ 4. Documentation updates
+
+ ---
+ Files to Modify (Summary)
+
+ Smart Contract:
+ - programs/halo-protocol/src/yield_integration.rs - Real Solend CPI
+
+ Frontend - Remove Mock Data:
+ - frontend/src/app/circles/page.tsx
+ - frontend/src/app/trust-score/page.tsx
+ - frontend/src/app/dashboard/page.tsx
+ - frontend/src/components/TrustScoreCard.tsx
+ - frontend/src/components/CirclesList.tsx
+ - frontend/src/stores/trustStore.ts
+
+ Frontend - API Routes:
+ - frontend/src/app/api/trust-score/route.ts
+ - frontend/src/app/api/trust-score/batch/route.ts
+ - frontend/src/app/api/trust-score/analytics/route.ts
+
+ Services:
+ - app/solend-service.ts - Replace mock with real SDK
+ - app/reflect-service.ts - Implement or remove
+ - app/arcium-service.ts - Implement or defer
+
+ Configuration:
+ - frontend/.env.local - Add production values
+ - Anchor.toml - Verify devnet config
+
+ ---
+ Decisions Made
+
+ | Decision               | Choice                 |
+ |------------------------|------------------------|
+ | Solend Integration     | ✅ Full implementation |
+ | Reflect Integration    | ⏸️ Deferred            |
+ | Arcium Privacy         | ⏸️ Deferred            |
+ | Infrastructure         | ✅ Helius + PostgreSQL |
+ | Switchboard Automation | ✅ Full setup          |
+
+ ---
+ Quick Start Checklist
+
+ Day 1: Deploy Smart Contract
+ - anchor build
+ - anchor deploy --provider.cluster devnet
+ - anchor idl init
+ - Verify on Solana Explorer
+
+ Day 2-3: Infrastructure
+ - Set up PostgreSQL (local or cloud)
+ - Create Helius account, configure webhooks
+ - Build indexer service to populate DB
+
+ Day 4-5: Real Solend Integration
+ - Get Solend devnet reserve addresses
+ - Replace mock service with real SDK calls
+ - Test deposit/withdraw flows
+
+ Day 6-7: Switchboard Automation
+ - Configure queue account
+ - Set up automation schedules
+ - Test automated callbacks
+
+ Day 8-10: Frontend + Testing
+ - Replace all mock data with real queries
+ - End-to-end testing
+ - Bug fixes and polish
