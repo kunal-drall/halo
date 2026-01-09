@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TrustScoreCard } from '@/components/TrustScoreCard'
 import { CirclesList } from '@/components/CirclesList'
-import { LendingPositions } from '@/components/LendingPositions'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { motion } from 'framer-motion'
 import { 
   Users, 
@@ -25,32 +25,6 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 
-const AuthButton = () => {
-  const { authenticated, login, logout } = useAuth()
-
-  if (authenticated) {
-    return (
-      <Button 
-        variant="outline" 
-        onClick={logout}
-        className="bg-white/10 border-white/20 hover:bg-white/20"
-      >
-        <LogOut className="h-4 w-4 mr-2" />
-        Logout
-      </Button>
-    )
-  }
-
-  return (
-    <Button 
-      onClick={login}
-      className="bg-gradient-to-r from-primary to-secondary text-white border-0 hover:shadow-lg hover:scale-105 transition-all duration-200"
-    >
-      <User className="h-4 w-4 mr-2" />
-      Sign In
-    </Button>
-  )
-}
 
 export default function DashboardPage() {
   const { authenticated } = useAuth()
@@ -73,8 +47,8 @@ export default function DashboardPage() {
                 You need to sign in to access the dashboard
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
-              <AuthButton />
+            <CardContent className="flex justify-center">
+              <WalletMultiButton className="!bg-primary hover:!bg-primary/90" />
             </CardContent>
           </Card>
         </motion.div>
@@ -131,7 +105,7 @@ export default function DashboardPage() {
             </Link>
             
             <div className="flex items-center gap-4">
-              <AuthButton />
+              <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !text-sm !py-2 !px-4 !rounded-lg" />
             </div>
           </div>
         </div>
@@ -255,20 +229,23 @@ export default function DashboardPage() {
               </TabsContent>
 
               <TabsContent value="lending" className="space-y-4">
-                <motion.div 
+                <motion.div
                   className="flex justify-between items-center"
                   variants={itemVariants}
                   initial="hidden"
                   animate="visible"
                 >
-                  <h2 className="text-xl font-semibold">Lending Positions</h2>
-                  <Button variant="outline" asChild>
-                    <Link href="/lending">
-                      View All <ArrowRight className="h-4 w-4 ml-2" />
-                    </Link>
-                  </Button>
+                  <h2 className="text-xl font-semibold">Yield Earnings</h2>
                 </motion.div>
-                <LendingPositions />
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="text-center text-muted-foreground">
+                      <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="font-medium mb-2">Yield Coming Soon</p>
+                      <p className="text-sm">Your circle contributions will earn yield automatically</p>
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               <TabsContent value="governance" className="space-y-4">

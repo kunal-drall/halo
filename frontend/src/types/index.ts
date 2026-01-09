@@ -1,38 +1,7 @@
-export interface Circle {
-  publicKey: string
-  creator: string
-  contributionAmount: number
-  durationMonths: number
-  maxMembers: number
-  currentMembers: number
-  penaltyRate: number
-  totalPot: number
-  currentMonth: number
-  status: 'active' | 'completed' | 'paused'
-  members: Member[]
-  createdAt: Date
-}
+// Re-export all types from circles.ts (comprehensive definitions)
+export * from './circles'
 
-export interface Member {
-  publicKey: string
-  walletAddress: string
-  hasContributed: boolean
-  hasReceivedPot: boolean
-  trustScore: number
-  joinedAt: Date
-  stakeAmount: number
-}
-
-export interface TrustScore {
-  publicKey: string
-  baseScore: number
-  socialProofs: SocialProof[]
-  defiActivityScore: number
-  contributionHistory: number
-  completedCircles: number
-  tier: 'Newcomer' | 'Silver' | 'Gold' | 'Platinum'
-  totalScore: number
-}
+// Additional types not in circles.ts
 
 export interface SocialProof {
   type: 'Twitter' | 'Discord' | 'GitHub' | 'LinkedIn'

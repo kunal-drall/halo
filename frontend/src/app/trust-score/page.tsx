@@ -2,21 +2,10 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-const AuthButton = () => {
-  const { login } = useAuth()
-  
-  return (
-    <Button 
-      onClick={login}
-      className="bg-gradient-to-r from-primary to-secondary text-white border-0"
-    >
-      Sign In
-    </Button>
-  )
-}
 import { 
   Shield,
   Star,
@@ -52,8 +41,8 @@ export default function TrustScorePage() {
               You need to connect your wallet to view your trust score
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-center">
-            <AuthButton />
+          <CardContent className="flex justify-center">
+            <WalletMultiButton className="!bg-primary hover:!bg-primary/90" />
           </CardContent>
         </Card>
       </div>
@@ -199,7 +188,7 @@ export default function TrustScorePage() {
               <Button variant="outline" asChild>
                 <Link href="/dashboard">Back to Dashboard</Link>
               </Button>
-              <AuthButton />
+              <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !text-sm !py-2 !px-4 !rounded-lg" />
             </div>
           </div>
         </div>

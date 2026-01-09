@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Connection, PublicKey } from '@solana/web3.js';
-import { HaloProtocolClient } from '../../../../../app/halo-client';
-import * as anchor from '@coral-xyz/anchor';
-
-// Mock program for now - in production, this would be properly initialized
-const connection = new Connection(process.env.NEXT_PUBLIC_RPC_ENDPOINT || 'https://api.devnet.solana.com');
+import { PublicKey } from '@solana/web3.js';
 
 /**
  * GET /api/trust-score?user=<publicKey>

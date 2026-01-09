@@ -2,24 +2,10 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { User } from 'lucide-react'
-
-const AuthButton = () => {
-  const { authenticated, login } = useAuth()
-  
-  return (
-    <Button 
-      onClick={login}
-      className="bg-gradient-to-r from-primary to-secondary text-white border-0 hover:shadow-lg hover:scale-105 transition-all duration-200"
-    >
-      <User className="h-4 w-4 mr-2" />
-      Sign In
-    </Button>
-  )
-}
 import { 
   Users, 
   Coins, 
@@ -51,8 +37,8 @@ export default function CirclesPage() {
               You need to connect your wallet to browse circles
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-center">
-            <AuthButton />
+          <CardContent className="flex justify-center">
+            <WalletMultiButton className="!bg-primary hover:!bg-primary/90" />
           </CardContent>
         </Card>
       </div>
@@ -191,7 +177,7 @@ export default function CirclesPage() {
               <Button asChild>
                 <Link href="/circles/create">Create Circle</Link>
               </Button>
-              <AuthButton />
+              <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !text-sm !py-2 !px-4 !rounded-lg" />
             </div>
           </div>
         </div>

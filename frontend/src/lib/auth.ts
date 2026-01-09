@@ -1,13 +1,23 @@
-// Temporary placeholder for authentication - to be replaced with Privy integration
-export const useAuth = () => ({
-  authenticated: true, // Set to true for demo purposes
-  login: () => alert('Authentication will be integrated with Privy'),
-  logout: () => {},
-  user: {
-    id: 'demo-user',
-    email: 'demo@example.com',
-    wallet: {
-      address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU'
-    }
+'use client'
+
+import { useWallet } from '@solana/wallet-adapter-react'
+import { useWalletModal } from '@solana/wallet-adapter-react-ui'
+
+// Wallet-based authentication hook
+export const useAuth = () => {
+  const { publicKey, connected, disconnect } = useWallet()
+  const { setVisible } = useWalletModal()
+
+  return {
+    authenticated: connected && !!publicKey,
+    login: () => setVisible(true),
+    logout: () => disconnect(),
+    user: publicKey ? {
+      id: publicKey.toBase58(),
+      wallet: {
+        address: publicKey.toBase58()
+      }
+    } : null,
+    publicKey
   }
-})
+}

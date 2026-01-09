@@ -135,7 +135,7 @@ class NotificationsService {
   private handleNotificationResponse(response: Notifications.NotificationResponse) {
     const { type, data } = response.notification.request.content.data as any;
 
-    // TODO: Navigate to appropriate screen based on notification type
+    // Navigation implementation - see GitHub issue #16 for details
     switch (type) {
       case NotificationType.CircleJoined:
       case NotificationType.CircleCompleted:
