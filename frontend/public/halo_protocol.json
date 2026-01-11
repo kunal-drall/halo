@@ -8,7 +8,7 @@
   },
   "accounts": [
     {
-      "name": "Circle",
+      "name": "circle",
       "discriminator": [174, 152, 111, 252, 45, 169, 233, 217],
       "size": 512,
       "type": {
@@ -104,7 +104,7 @@
       }
     },
     {
-      "name": "Member",
+      "name": "member",
       "discriminator": [29, 149, 6, 208, 236, 21, 196, 195],
       "size": 256,
       "type": {
@@ -182,7 +182,7 @@
       }
     },
     {
-      "name": "TrustScore",
+      "name": "trustScore",
       "discriminator": [123, 45, 67, 89, 12, 34, 56, 78],
       "size": 128,
       "type": {
@@ -234,7 +234,7 @@
       }
     },
     {
-      "name": "Escrow",
+      "name": "escrow",
       "discriminator": [87, 65, 43, 21, 98, 76, 54, 32],
       "size": 64,
       "type": {
@@ -620,7 +620,7 @@
   ],
   "accounts": [
     {
-      "name": "Circle",
+      "name": "circle",
       "discriminator": [
         45,
         175,
@@ -633,7 +633,7 @@
       ]
     },
     {
-      "name": "Member",
+      "name": "member",
       "discriminator": [
         230,
         218,
@@ -659,7 +659,7 @@
       ]
     },
     {
-      "name": "TrustScore",
+      "name": "trustScore",
       "discriminator": [
         86,
         195,
