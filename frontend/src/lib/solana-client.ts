@@ -73,7 +73,7 @@ export class SolanaClient {
         this.isInitialized = true;
         console.log('Program initialized with IDL');
       } catch (programError) {
-        console.warn('Could not initialize Program object, blockchain features will be limited:', programError);
+        console.log('Program not yet deployed or IDL needs update - using database for data');
         this.program = null;
       }
     } catch (error) {
