@@ -4,7 +4,6 @@ import { Connection, PublicKey, Keypair } from '@solana/web3.js';
 import { Program, AnchorProvider } from '@coral-xyz/anchor';
 import { HaloProtocolProgram } from '../types/halo_protocol';
 
-// Simple wallet implementation
 class SimpleWallet {
   constructor(public keypair: Keypair) {}
   
@@ -28,67 +27,114 @@ class SimpleWallet {
 export class SolanaClient {
   private connection: Connection;
   private program: Program<HaloProtocolProgram> | null = null;
-  private programReady: Promise<void>;
-  private provider: AnchorProvider;
+  private programReady: Promise<void> | null = null;
+  private provider: AnchorProvider | null = null;
+  private isInitialized = false;
 
   constructor() {
     const rpcEndpoint = process.env.NEXT_PUBLIC_RPC_ENDPOINT || 'https://api.devnet.solana.com';
     this.connection = new Connection(rpcEndpoint, 'confirmed');
     
-    // Create a dummy wallet for now - will be replaced with actual wallet
-    const dummyWallet = new SimpleWallet(Keypair.generate());
-    
-    this.provider = new AnchorProvider(
-      this.connection,
-      dummyWallet,
-      { commitment: 'confirmed' }
-    );
+    if (typeof window !== 'undefined') {
+      const dummyWallet = new SimpleWallet(Keypair.generate());
+      
+      this.provider = new AnchorProvider(
+        this.connection,
+        dummyWallet,
+        { commitment: 'confirmed' }
+      );
 
-    // Get program ID with fallback
-    const programId = process.env.NEXT_PUBLIC_PROGRAM_ID || '9KmMjZrsvTdRnfr2dZerby2d5f6tjyPZwViweQxV2FnR';
-    
-    // Initialize the program asynchronously
-    this.programReady = this.initializeProgram(programId);
+      const programId = process.env.NEXT_PUBLIC_PROGRAM_ID || '58Fg8uB36CJwb9gqGxSwmR8RYBWrXMwFbTRuW1694qcd';
+      this.programReady = this.initializeProgram(programId);
+    } else {
+      this.programReady = Promise.resolve();
+    }
   }
 
   private async initializeProgram(programId: string): Promise<void> {
+    if (typeof window === 'undefined' || !this.provider) {
+      return;
+    }
+    
     try {
       const idl = await this.loadIDL(programId);
-      // Program constructor: Program(idl, provider, opts)
-      // If IDL has address field, it will use that, otherwise we pass programId in opts
-      const programIdPubkey = new PublicKey(idl.address || programId);
-      this.program = new Program(
-        idl as any,
-        this.provider
-      ) as any;
-      // Set programId explicitly if needed
-      if (this.program) {
-        (this.program as any).programId = programIdPubkey;
+      if (!idl) {
+        console.warn('No IDL available for program initialization');
+        return;
       }
-      console.log('✅ Program initialized with full IDL');
+      
+      const convertedIdl = this.convertIdlFormat(idl, programId);
+      
+      try {
+        this.program = new Program(
+          convertedIdl as any,
+          this.provider
+        ) as any;
+        this.isInitialized = true;
+        console.log('Program initialized with IDL');
+      } catch (programError) {
+        console.warn('Could not initialize Program object, blockchain features will be limited:', programError);
+        this.program = null;
+      }
     } catch (error) {
-      console.error('Error initializing program:', error);
+      console.warn('Error during program initialization:', error);
       this.program = null;
     }
   }
-
-  async loadIDL(programId: string): Promise<any> {
-    if (typeof window !== 'undefined') {
-      try {
-        const response = await fetch('/halo_protocol.json');
-        if (response.ok) {
-          const fullIdl = await response.json();
-          if (fullIdl && fullIdl.instructions && fullIdl.instructions.length > 0) {
-            console.log('✅ Loaded full IDL from public directory');
-            return fullIdl;
-          }
-        }
-      } catch (error) {
-        console.log('Could not load IDL from public directory:', error);
-      }
+  
+  private convertIdlFormat(idl: any, programId: string): any {
+    if (!idl.accounts) {
+      return idl;
     }
     
-    // Fallback to minimal IDL with address
+    const converted = {
+      ...idl,
+      address: idl.address || programId,
+      version: idl.version || "0.1.0",
+      name: idl.name || idl.metadata?.name || "halo_protocol",
+    };
+    
+    if (idl.accounts) {
+      converted.accounts = idl.accounts.map((acc: any) => {
+        const cleanAcc = { ...acc };
+        if (cleanAcc.discriminator && Array.isArray(cleanAcc.discriminator)) {
+          cleanAcc.discriminator = Buffer.from(cleanAcc.discriminator);
+        }
+        return cleanAcc;
+      });
+    }
+    
+    if (idl.instructions) {
+      converted.instructions = idl.instructions.map((ix: any) => {
+        const cleanIx = { ...ix };
+        if (cleanIx.discriminator && Array.isArray(cleanIx.discriminator)) {
+          cleanIx.discriminator = Buffer.from(cleanIx.discriminator);
+        }
+        return cleanIx;
+      });
+    }
+    
+    return converted;
+  }
+
+  async loadIDL(programId: string): Promise<any> {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    
+    try {
+      const response = await fetch('/halo_protocol.json');
+      if (response.ok) {
+        const fullIdl = await response.json();
+        if (fullIdl && fullIdl.instructions && fullIdl.instructions.length > 0) {
+          console.log('Loaded IDL from public directory');
+          return fullIdl;
+        }
+      }
+    } catch (error) {
+      console.log('Could not load IDL from public directory:', error);
+    }
+    
     const fallbackProgramId = process.env.NEXT_PUBLIC_PROGRAM_ID || '58Fg8uB36CJwb9gqGxSwmR8RYBWrXMwFbTRuW1694qcd';
     return {
       "address": fallbackProgramId,
@@ -99,39 +145,8 @@ export class SolanaClient {
         "version": "0.1.0",
         "spec": "0.1.0"
       },
-      "instructions": [
-        {
-          "name": "initializeCircle",
-          "accounts": [
-            { "name": "circle", "isMut": true, "isSigner": false },
-            { "name": "creator", "isMut": true, "isSigner": true },
-            { "name": "systemProgram", "isMut": false, "isSigner": false }
-          ],
-          "args": [
-            { "name": "contributionAmount", "type": "u64" },
-            { "name": "durationMonths", "type": "u8" },
-            { "name": "maxMembers", "type": "u8" },
-            { "name": "penaltyRate", "type": "u16" }
-          ]
-        }
-      ],
-      "accounts": [
-        {
-          "name": "Circle",
-          "type": {
-            "kind": "struct",
-            "fields": [
-              { "name": "creator", "type": "publicKey" },
-              { "name": "contributionAmount", "type": "u64" },
-              { "name": "durationMonths", "type": "u8" },
-              { "name": "maxMembers", "type": "u8" },
-              { "name": "currentMembers", "type": "u8" },
-              { "name": "status", "type": "u8" },
-              { "name": "createdAt", "type": "i64" }
-            ]
-          }
-        }
-      ],
+      "instructions": [],
+      "accounts": [],
       "types": []
     };
   }
@@ -141,7 +156,9 @@ export class SolanaClient {
   }
 
   async ensureProgramReady(): Promise<void> {
-    await this.programReady;
+    if (this.programReady) {
+      await this.programReady;
+    }
   }
 
   getProgram(): Program<HaloProtocolProgram> | null {
@@ -162,7 +179,6 @@ export class SolanaClient {
     });
   }
 
-  // Circle-related methods
   async getCircle(circleAddress: PublicKey) {
     if (!this.program) {
       console.warn('Program not initialized');
@@ -189,7 +205,6 @@ export class SolanaClient {
     }
   }
 
-  // Member-related methods
   async getMember(memberAddress: PublicKey) {
     if (!this.program) {
       console.warn('Program not initialized');
@@ -212,7 +227,7 @@ export class SolanaClient {
       return await (this.program.account as any).member.all([
         {
           memcmp: {
-            offset: 8, // Skip discriminator
+            offset: 8,
             bytes: circleAddress.toBase58()
           }
         }
@@ -223,7 +238,6 @@ export class SolanaClient {
     }
   }
 
-  // Trust score methods
   async getTrustScore(authority: PublicKey) {
     if (!this.program) {
       console.warn('Program not initialized');
@@ -237,7 +251,6 @@ export class SolanaClient {
     }
   }
 
-  // Escrow methods
   async getEscrow(escrowAddress: PublicKey) {
     if (!this.program) {
       console.warn('Program not initialized');
@@ -251,7 +264,6 @@ export class SolanaClient {
     }
   }
 
-  // Transaction methods
   async sendTransaction(transaction: any, signers: Keypair[]) {
     try {
       const signature = await this.connection.sendTransaction(transaction, signers);
@@ -263,7 +275,6 @@ export class SolanaClient {
     }
   }
 
-  // Utility methods
   async getRecentBlockhash() {
     return await this.connection.getRecentBlockhash();
   }
@@ -272,10 +283,8 @@ export class SolanaClient {
     return await this.connection.getSlot();
   }
 
-  // Health check
   async isHealthy(): Promise<boolean> {
     try {
-      // Use getVersion as a health check instead of getHealth
       await this.connection.getVersion();
       return true;
     } catch (error) {
@@ -284,42 +293,41 @@ export class SolanaClient {
     }
   }
 
-  // Check program status
   async checkProgramStatus(): Promise<{ exists: boolean; hasIdl: boolean; error?: string }> {
     try {
-      const programId = new PublicKey(process.env.NEXT_PUBLIC_PROGRAM_ID || '9KmMjZrsvTdRnfr2dZerby2d5f6tjyPZwViweQxV2FnR');
+      const programId = new PublicKey(process.env.NEXT_PUBLIC_PROGRAM_ID || '58Fg8uB36CJwb9gqGxSwmR8RYBWrXMwFbTRuW1694qcd');
       
-      // Check if program exists
       const programInfo = await this.connection.getAccountInfo(programId);
       if (!programInfo) {
         return { exists: false, hasIdl: false, error: 'Program not found on chain' };
       }
 
-      // Try to fetch IDL from the program
-      try {
-        const idl = await Program.fetchIdl(programId, this.provider);
-        if (idl) {
-          return { exists: true, hasIdl: true };
-        }
-      } catch (idlError) {
-        console.log('IDL not found on-chain, checking local IDL');
-      }
-
-      // Check if we have a local IDL file
-      try {
-        const response = await fetch('/halo_protocol.json');
-        if (response.ok) {
-          const localIdl = await response.json();
-          if (localIdl && localIdl.instructions && localIdl.instructions.length > 0) {
-            console.log('✅ Local IDL found and valid');
+      if (this.provider) {
+        try {
+          const idl = await Program.fetchIdl(programId, this.provider);
+          if (idl) {
             return { exists: true, hasIdl: true };
           }
+        } catch (idlError) {
+          console.log('IDL not found on-chain, checking local IDL');
         }
-      } catch (fetchError) {
-        console.log('Could not load local IDL:', fetchError);
       }
 
-      // If we have a program instance with IDL, that's good enough
+      if (typeof window !== 'undefined') {
+        try {
+          const response = await fetch('/halo_protocol.json');
+          if (response.ok) {
+            const localIdl = await response.json();
+            if (localIdl && localIdl.instructions && localIdl.instructions.length > 0) {
+              console.log('Local IDL found and valid');
+              return { exists: true, hasIdl: true };
+            }
+          }
+        } catch (fetchError) {
+          console.log('Could not load local IDL:', fetchError);
+        }
+      }
+
       if (this.program && this.program.idl) {
         return { exists: true, hasIdl: true };
       }
@@ -331,5 +339,13 @@ export class SolanaClient {
   }
 }
 
-// Singleton instance
-export const solanaClient = new SolanaClient();
+let solanaClientInstance: SolanaClient | null = null;
+
+export function getSolanaClient(): SolanaClient {
+  if (!solanaClientInstance) {
+    solanaClientInstance = new SolanaClient();
+  }
+  return solanaClientInstance;
+}
+
+export const solanaClient = typeof window !== 'undefined' ? getSolanaClient() : null as any;
