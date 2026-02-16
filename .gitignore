@@ -61,7 +61,6 @@ temp/
 *.so
 
 # Rust
-Cargo.lock
 **/*.rs.bk
 
 # Frontend specific

@@ -2,11 +2,12 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::errors::HaloError;
-use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution, TrustScore, TrustTier, SocialProof, AutomationState, CircleAutomation, AutomationEvent, AutomationEventType, Treasury, RevenueParams, GovernanceProposal, Vote, Auction, Bid, ProposalType, ProposalStatus, AuctionStatus};
+use crate::state::{Circle, Member, CircleEscrow, CircleStatus, MemberStatus, MonthlyContribution, MemberContribution, TrustScore, TrustTier, SocialProof, AutomationState, CircleAutomation, AutomationEvent, AutomationEventType, Treasury, RevenueParams, GovernanceProposal, Vote, Auction, Bid, ProposalType, ProposalStatus, AuctionStatus, PayoutMethod};
 use crate::revenue;
 
-pub fn initialize_circle(
+pub(crate) fn initialize_circle(
     ctx: Context<InitializeCircle>,
+    circle_id: u64,
     contribution_amount: u64,
     duration_months: u8,
     max_members: u8,
@@ -21,7 +22,7 @@ pub fn initialize_circle(
     let clock = Clock::get()?;
 
     circle.creator = ctx.accounts.creator.key();
-    circle.id = clock.unix_timestamp as u64;
+    circle.id = circle_id;
     circle.contribution_amount = contribution_amount;
     circle.duration_months = duration_months;
     circle.max_members = max_members;
@@ -35,6 +36,19 @@ pub fn initialize_circle(
     circle.total_pot = 0;
     circle.bump = ctx.bumps.circle;
 
+    // Initialize ROSCA-specific fields
+    circle.payout_method = PayoutMethod::FixedRotation; // Default, can be changed
+    circle.payout_queue = Vec::new();
+    circle.payout_bid_amounts = Vec::new();
+    circle.min_trust_tier = 0; // Newcomer (0-249)
+    circle.insurance_pool = Pubkey::default(); // Will be set when insurance pool is created
+    circle.circle_type = crate::state::CircleType::Standard;
+    circle.invite_code = None;
+    circle.is_public = true;
+    circle.escrow_account = ctx.accounts.escrow.key();
+    circle.total_yield_earned = 0;
+    circle.next_payout_recipient = None;
+
     // Initialize escrow
     let escrow = &mut ctx.accounts.escrow;
     escrow.circle = circle.key();
@@ -42,11 +56,21 @@ pub fn initialize_circle(
     escrow.monthly_pots = vec![0; duration_months as usize];
     escrow.bump = ctx.bumps.escrow;
 
+    // Initialize escrow ROSCA-specific fields
+    escrow.total_yield_earned = 0;
+    escrow.solend_c_token_balance = 0;
+    escrow.last_yield_calculation = 0;
+    escrow.member_yield_shares = Vec::new();
+    escrow.reflect_yield_earned = 0;
+    escrow.solend_yield_earned = 0;
+    escrow.reflect_token_type = None;
+    escrow.reflect_initial_price = 0;
+
     msg!("Circle initialized with ID: {}", circle.id);
     Ok(())
 }
 
-pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
+pub(crate) fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
     let circle = &mut ctx.accounts.circle;
     let member_account = &mut ctx.accounts.member;
     let clock = Clock::get()?;
@@ -62,11 +86,17 @@ pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
         let trust_score = trust_score_account.score;
         let trust_tier = trust_score_account.tier.clone();
         let stake_multiplier = trust_score_account.get_minimum_stake_multiplier();
-        let min_stake = (circle.contribution_amount * stake_multiplier) / 100;
+        let min_stake = circle.contribution_amount
+            .checked_mul(stake_multiplier)
+            .and_then(|v| v.checked_div(100))
+            .ok_or(HaloError::ArithmeticOverflow)?;
         (trust_score, trust_tier, min_stake)
     } else {
         // Default for new users without trust score
-        (0, TrustTier::Newcomer, circle.contribution_amount * 2) // 2x stake for newcomers
+        let default_stake = circle.contribution_amount
+            .checked_mul(2)
+            .ok_or(HaloError::ArithmeticOverflow)?;
+        (0, TrustTier::Newcomer, default_stake) // 2x stake for newcomers
     };
 
     require!(stake_amount >= minimum_stake_required, HaloError::InsufficientStake);
@@ -97,9 +127,17 @@ pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
     member_account.contributions_missed = 0;
     member_account.bump = ctx.bumps.member;
 
+    // Initialize ROSCA-specific fields for member
+    member_account.payout_claimed = false;
+    member_account.payout_position = circle.current_members; // Position in order they join
+    member_account.insurance_staked = 0;
+    member_account.contribution_records = Vec::new();
+
     // Add member to circle
     circle.members.push(ctx.accounts.member_authority.key());
-    circle.current_members += 1;
+    circle.current_members = circle.current_members
+        .checked_add(1)
+        .ok_or(HaloError::ArithmeticOverflow)?;
 
     // Update escrow
     let escrow = &mut ctx.accounts.escrow;
@@ -109,7 +147,7 @@ pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
     Ok(())
 }
 
-pub fn contribute(ctx: Context<Contribute>, amount: u64) -> Result<()> {
+pub(crate) fn contribute(ctx: Context<Contribute>, amount: u64) -> Result<()> {
     let circle = &mut ctx.accounts.circle;
     let member = &mut ctx.accounts.member;
     let clock = Clock::get()?;
@@ -203,7 +241,7 @@ pub fn contribute(ctx: Context<Contribute>, amount: u64) -> Result<()> {
     Ok(())
 }
 
-pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
+pub(crate) fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
     let circle = &mut ctx.accounts.circle;
     let recipient_member = &mut ctx.accounts.recipient_member;
     let escrow = &mut ctx.accounts.escrow;
@@ -284,7 +322,7 @@ pub fn distribute_pot(ctx: Context<DistributePot>) -> Result<()> {
     Ok(())
 }
 
-pub fn claim_penalty(ctx: Context<ClaimPenalty>) -> Result<()> {
+pub(crate) fn claim_penalty(ctx: Context<ClaimPenalty>) -> Result<()> {
     let circle = &ctx.accounts.circle;
     let defaulted_member = &mut ctx.accounts.defaulted_member;
     let claimer = &ctx.accounts.claimer;
@@ -323,7 +361,7 @@ pub fn claim_penalty(ctx: Context<ClaimPenalty>) -> Result<()> {
     Ok(())
 }
 
-pub fn leave_circle(ctx: Context<LeaveCircle>) -> Result<()> {
+pub(crate) fn leave_circle(ctx: Context<LeaveCircle>) -> Result<()> {
     let circle = &mut ctx.accounts.circle;
     let member = &mut ctx.accounts.member;
     let clock = Clock::get()?;
@@ -369,14 +407,16 @@ pub fn leave_circle(ctx: Context<LeaveCircle>) -> Result<()> {
     // Remove member from circle
     if let Some(pos) = circle.members.iter().position(|&x| x == member.authority) {
         circle.members.remove(pos);
-        circle.current_members -= 1;
+        circle.current_members = circle.current_members
+            .checked_sub(1)
+            .ok_or(HaloError::ArithmeticOverflow)?;
     }
 
     msg!("Member {} left the circle", member.authority);
     Ok(())
 }
 
-pub fn initialize_trust_score(ctx: Context<InitializeTrustScore>) -> Result<()> {
+pub(crate) fn initialize_trust_score(ctx: Context<InitializeTrustScore>) -> Result<()> {
     let trust_score = &mut ctx.accounts.trust_score;
     let clock = Clock::get()?;
 
@@ -399,7 +439,7 @@ pub fn initialize_trust_score(ctx: Context<InitializeTrustScore>) -> Result<()> 
     Ok(())
 }
 
-pub fn update_trust_score(ctx: Context<UpdateTrustScore>) -> Result<()> {
+pub(crate) fn update_trust_score(ctx: Context<UpdateTrustScore>) -> Result<()> {
     let trust_score = &mut ctx.accounts.trust_score;
     let clock = Clock::get()?;
 
@@ -412,7 +452,7 @@ pub fn update_trust_score(ctx: Context<UpdateTrustScore>) -> Result<()> {
     Ok(())
 }
 
-pub fn add_social_proof(
+pub(crate) fn add_social_proof(
     ctx: Context<AddSocialProof>,
     proof_type: String,
     identifier: String,
@@ -440,7 +480,7 @@ pub fn add_social_proof(
     Ok(())
 }
 
-pub fn verify_social_proof(
+pub(crate) fn verify_social_proof(
     ctx: Context<VerifySocialProof>,
     proof_type: String,
     identifier: String,
@@ -467,7 +507,7 @@ pub fn verify_social_proof(
     Ok(())
 }
 
-pub fn update_defi_activity_score(
+pub(crate) fn update_defi_activity_score(
     ctx: Context<UpdateDefiActivityScore>,
     activity_score: u16,
 ) -> Result<()> {
@@ -483,7 +523,7 @@ pub fn update_defi_activity_score(
     Ok(())
 }
 
-pub fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> Result<()> {
+pub(crate) fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> Result<()> {
     let trust_score = &mut ctx.accounts.trust_score;
     let circle = &ctx.accounts.circle;
     let clock = Clock::get()?;
@@ -492,7 +532,9 @@ pub fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> 
     require!(circle.members.contains(&trust_score.authority), HaloError::MemberNotFound);
     
     // Update trust score for circle completion
-    trust_score.circles_completed += 1;
+    trust_score.circles_completed = trust_score.circles_completed
+        .checked_add(1)
+        .ok_or(HaloError::ArithmeticOverflow)?;
     trust_score.calculate_score();
     trust_score.last_updated = clock.unix_timestamp;
     
@@ -502,7 +544,7 @@ pub fn complete_circle_update_trust(ctx: Context<CompleteCircleUpdateTrust>) -> 
 
 // Automation Instructions
 
-pub fn initialize_automation_state(
+pub(crate) fn initialize_automation_state(
     ctx: Context<InitializeAutomationState>,
     min_interval: i64,
 ) -> Result<()> {
@@ -520,7 +562,7 @@ pub fn initialize_automation_state(
     Ok(())
 }
 
-pub fn setup_circle_automation(
+pub(crate) fn setup_circle_automation(
     ctx: Context<SetupCircleAutomation>,
     auto_collect: bool,
     auto_distribute: bool,
@@ -528,8 +570,8 @@ pub fn setup_circle_automation(
 ) -> Result<()> {
     let circle_automation = &mut ctx.accounts.circle_automation;
     let circle = &ctx.accounts.circle;
-    let clock = Clock::get()?;
-    
+    let _clock = Clock::get()?;
+
     circle_automation.circle = circle.key();
     circle_automation.job_account = ctx.accounts.switchboard_job.key();
     circle_automation.auto_collect_enabled = auto_collect;
@@ -558,14 +600,17 @@ pub fn setup_circle_automation(
     
     // Update global automation state
     let automation_state = &mut ctx.accounts.automation_state;
-    automation_state.active_jobs += 1;
+    automation_state.active_jobs = automation_state.active_jobs
+        .checked_add(1)
+        .ok_or(HaloError::ArithmeticOverflow)?;
     
     msg!("Circle automation setup for circle: {}", circle.key());
     Ok(())
 }
 
-pub fn automated_contribution_collection(
+pub(crate) fn automated_contribution_collection(
     ctx: Context<AutomatedContributionCollection>,
+    _event_timestamp: i64,
 ) -> Result<()> {
     let circle_automation = &mut ctx.accounts.circle_automation;
     let clock = Clock::get()?;
@@ -594,8 +639,9 @@ pub fn automated_contribution_collection(
     Ok(())
 }
 
-pub fn automated_payout_distribution(
+pub(crate) fn automated_payout_distribution(
     ctx: Context<AutomatedPayoutDistribution>,
+    _event_timestamp: i64,
     recipient: Pubkey,
 ) -> Result<()> {
     let circle_automation = &mut ctx.accounts.circle_automation;
@@ -626,8 +672,9 @@ pub fn automated_payout_distribution(
     Ok(())
 }
 
-pub fn automated_penalty_enforcement(
+pub(crate) fn automated_penalty_enforcement(
     ctx: Context<AutomatedPenaltyEnforcement>,
+    _event_timestamp: i64,
 ) -> Result<()> {
     let circle_automation = &mut ctx.accounts.circle_automation;
     let circle = &ctx.accounts.circle;
@@ -645,10 +692,10 @@ pub fn automated_penalty_enforcement(
     
     // Calculate current month to check for missed contributions
     let months_since_creation = ((clock.unix_timestamp - circle.created_at) / (30 * 24 * 60 * 60)) as u8;
-    let current_month = std::cmp::min(months_since_creation, circle.duration_months - 1);
-    
+    let _current_month = std::cmp::min(months_since_creation, circle.duration_months - 1);
+
     // Check which members have missed contributions and apply penalties
-    let mut penalties_applied = 0u32;
+    let penalties_applied = 0u32;
     
     // This is a simplified penalty check - in practice, you'd iterate through members
     // and check their contribution history against the current month
@@ -668,7 +715,7 @@ pub fn automated_penalty_enforcement(
     Ok(())
 }
 
-pub fn update_automation_settings(
+pub(crate) fn update_automation_settings(
     ctx: Context<UpdateAutomationSettings>,
     enabled: bool,
     min_interval: Option<i64>,
@@ -686,7 +733,7 @@ pub fn update_automation_settings(
     Ok(())
 }
 
-pub fn switchboard_automation_callback(
+pub(crate) fn switchboard_automation_callback(
     ctx: Context<SwitchboardAutomationCallback>,
 ) -> Result<()> {
     let automation_state = &ctx.accounts.automation_state;
@@ -711,13 +758,13 @@ pub fn switchboard_automation_callback(
 }
 
 #[derive(Accounts)]
-#[instruction(contribution_amount: u64, duration_months: u8, max_members: u8, penalty_rate: u16)]
+#[instruction(circle_id: u64, contribution_amount: u64, duration_months: u8, max_members: u8, penalty_rate: u16)]
 pub struct InitializeCircle<'info> {
     #[account(
         init,
         payer = creator,
         space = Circle::space(),
-        seeds = [b"circle", creator.key().as_ref(), &Clock::get().unwrap().unix_timestamp.to_le_bytes()],
+        seeds = [b"circle", creator.key().as_ref(), &circle_id.to_le_bytes()],
         bump
     )]
     pub circle: Account<'info, Circle>,
@@ -1042,6 +1089,7 @@ pub struct SetupCircleAutomation<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(event_timestamp: i64)]
 pub struct AutomatedContributionCollection<'info> {
     #[account(
         mut,
@@ -1049,23 +1097,24 @@ pub struct AutomatedContributionCollection<'info> {
         bump = circle_automation.bump
     )]
     pub circle_automation: Account<'info, CircleAutomation>,
-    
+
     #[account(
         init,
         payer = payer,
         space = AutomationEvent::SPACE,
-        seeds = [b"automation_event", circle_automation.circle.as_ref(), &Clock::get().unwrap().unix_timestamp.to_le_bytes()],
+        seeds = [b"automation_event", circle_automation.circle.as_ref(), &event_timestamp.to_le_bytes()],
         bump
     )]
     pub automation_event: Account<'info, AutomationEvent>,
-    
+
     #[account(mut)]
     pub payer: Signer<'info>,
-    
+
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
+#[instruction(event_timestamp: i64)]
 pub struct AutomatedPayoutDistribution<'info> {
     #[account(
         mut,
@@ -1073,25 +1122,26 @@ pub struct AutomatedPayoutDistribution<'info> {
         bump = circle_automation.bump
     )]
     pub circle_automation: Account<'info, CircleAutomation>,
-    
+
     #[account(
         init,
         payer = payer,
         space = AutomationEvent::SPACE,
-        seeds = [b"automation_event", circle_automation.circle.as_ref(), &Clock::get().unwrap().unix_timestamp.to_le_bytes()],
+        seeds = [b"automation_event", circle_automation.circle.as_ref(), &event_timestamp.to_le_bytes()],
         bump
     )]
     pub automation_event: Account<'info, AutomationEvent>,
-    
+
     pub distribute_pot_accounts: DistributePot<'info>,
-    
+
     #[account(mut)]
     pub payer: Signer<'info>,
-    
+
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
+#[instruction(event_timestamp: i64)]
 pub struct AutomatedPenaltyEnforcement<'info> {
     #[account(
         mut,
@@ -1099,21 +1149,21 @@ pub struct AutomatedPenaltyEnforcement<'info> {
         bump = circle_automation.bump
     )]
     pub circle_automation: Account<'info, CircleAutomation>,
-    
+
     pub circle: Account<'info, Circle>,
-    
+
     #[account(
         init,
         payer = payer,
         space = AutomationEvent::SPACE,
-        seeds = [b"automation_event", circle_automation.circle.as_ref(), &Clock::get().unwrap().unix_timestamp.to_le_bytes()],
+        seeds = [b"automation_event", circle_automation.circle.as_ref(), &event_timestamp.to_le_bytes()],
         bump
     )]
     pub automation_event: Account<'info, AutomationEvent>,
-    
+
     #[account(mut)]
     pub payer: Signer<'info>,
-    
+
     pub system_program: Program<'info, System>,
 }
 
@@ -1143,7 +1193,7 @@ pub struct SwitchboardAutomationCallback<'info> {
     pub switchboard_feed: AccountInfo<'info>,
 }// Governance and Auction Instructions
 
-pub fn create_proposal(
+pub(crate) fn create_proposal(
     ctx: Context<CreateProposal>,
     title: String,
     description: String,
@@ -1213,7 +1263,7 @@ pub fn create_proposal(
     Ok(())
 }
 
-pub fn cast_vote(
+pub(crate) fn cast_vote(
     ctx: Context<CastVote>,
     support: bool,
     voting_power: u64,
@@ -1271,7 +1321,7 @@ pub fn cast_vote(
     Ok(())
 }
 
-pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
+pub(crate) fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
     let proposal = &mut ctx.accounts.proposal;
     let circle = &mut ctx.accounts.circle;
     let clock = Clock::get()?;
@@ -1313,7 +1363,7 @@ pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
     Ok(())
 }
 
-pub fn create_auction(
+pub(crate) fn create_auction(
     ctx: Context<CreateAuction>,
     pot_amount: u64,
     starting_bid: u64,
@@ -1360,7 +1410,7 @@ pub fn create_auction(
     Ok(())
 }
 
-pub fn place_bid(
+pub(crate) fn place_bid(
     ctx: Context<PlaceBid>,
     bid_amount: u64,
 ) -> Result<()> {
@@ -1421,7 +1471,7 @@ pub fn place_bid(
     Ok(())
 }
 
-pub fn settle_auction(ctx: Context<SettleAuction>) -> Result<()> {
+pub(crate) fn settle_auction(ctx: Context<SettleAuction>) -> Result<()> {
     let auction = &mut ctx.accounts.auction;
     let clock = Clock::get()?;
 
@@ -1622,6 +1672,14 @@ pub struct BidPlaced {
 }
 
 #[event]
+pub struct PayoutBidPlaced {
+    pub circle: Pubkey,
+    pub member: Pubkey,
+    pub bid_amount: u64,
+    pub timestamp: i64,
+}
+
+#[event]
 pub struct AuctionSettled {
     pub auction_id: u64,
     pub winner: Option<Pubkey>,
@@ -1709,7 +1767,7 @@ pub struct ProcessPayoutRound<'info> {
 }
 
 // ROSCA instruction implementations
-pub fn claim_payout(ctx: Context<ClaimPayout>) -> Result<()> {
+pub(crate) fn claim_payout(ctx: Context<ClaimPayout>) -> Result<()> {
     let circle = &mut ctx.accounts.circle;
     let member = &mut ctx.accounts.member;
     let escrow = &mut ctx.accounts.escrow;
@@ -1721,27 +1779,41 @@ pub fn claim_payout(ctx: Context<ClaimPayout>) -> Result<()> {
     );
     
     // Calculate payout amount (base + yield share)
-    let base_payout = circle.contribution_amount * circle.current_members as u64;
+    let base_payout = circle.contribution_amount
+        .checked_mul(circle.current_members as u64)
+        .ok_or(HaloError::ArithmeticOverflow)?;
     let member_yield_share = escrow.member_yield_shares
         .iter()
         .find(|share| share.member == member.authority)
         .map(|share| share.yield_earned)
         .unwrap_or(0);
     
-    let total_payout = base_payout + member_yield_share;
-    
+    let total_payout = base_payout
+        .checked_add(member_yield_share)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+
     // Transfer payout to member
+    // Escrow is a PDA - needs signer seeds
+    let circle_key = circle.key();
+    let escrow_seeds = &[
+        b"escrow",
+        circle_key.as_ref(),
+        &[escrow.bump],
+    ];
+    let escrow_signer = &[&escrow_seeds[..]];
+
     let transfer_instruction = Transfer {
         from: ctx.accounts.escrow_token_account.to_account_info(),
         to: ctx.accounts.member_token_account.to_account_info(),
         authority: ctx.accounts.escrow.to_account_info(),
     };
-    
-    let cpi_ctx = CpiContext::new(
+
+    let cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         transfer_instruction,
+        escrow_signer,
     );
-    
+
     token::transfer(cpi_ctx, total_payout)?;
     
     // Update member
@@ -1749,8 +1821,12 @@ pub fn claim_payout(ctx: Context<ClaimPayout>) -> Result<()> {
     member.has_received_pot = true;
     
     // Update circle
-    circle.current_month += 1;
-    circle.total_pot -= total_payout;
+    circle.current_month = circle.current_month
+        .checked_add(1)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+    circle.total_pot = circle.total_pot
+        .checked_sub(total_payout)
+        .ok_or(HaloError::ArithmeticOverflow)?;
     
     // Determine next recipient
     if circle.current_month < circle.duration_months {
@@ -1780,7 +1856,7 @@ pub fn claim_payout(ctx: Context<ClaimPayout>) -> Result<()> {
     Ok(())
 }
 
-pub fn bid_for_payout(ctx: Context<BidForPayout>, bid_amount: u64) -> Result<()> {
+pub(crate) fn bid_for_payout(ctx: Context<BidForPayout>, bid_amount: u64) -> Result<()> {
     let circle = &mut ctx.accounts.circle;
     let member = &mut ctx.accounts.member;
     
@@ -1806,22 +1882,19 @@ pub fn bid_for_payout(ctx: Context<BidForPayout>, bid_amount: u64) -> Result<()>
     );
     
     token::transfer(cpi_ctx, bid_amount)?;
-    
+
     // Update payout queue based on bid
-    // Higher bid = earlier position
-    let insert_position = circle.payout_queue
+    // Higher bid = earlier position (descending order)
+    let insert_position = circle.payout_bid_amounts
         .iter()
-        .position(|&p| {
-            // Find position based on existing bids (simplified)
-            // In real implementation, would need to track bids
-            false
-        })
+        .position(|&existing_bid| bid_amount > existing_bid)
         .unwrap_or(circle.payout_queue.len());
-    
+
     circle.payout_queue.insert(insert_position, member.authority);
+    circle.payout_bid_amounts.insert(insert_position, bid_amount);
     
     // Emit event
-    emit!(BidPlaced {
+    emit!(PayoutBidPlaced {
         circle: circle.key(),
         member: member.authority,
         bid_amount,
@@ -1831,7 +1904,7 @@ pub fn bid_for_payout(ctx: Context<BidForPayout>, bid_amount: u64) -> Result<()>
     Ok(())
 }
 
-pub fn process_payout_round(ctx: Context<ProcessPayoutRound>) -> Result<()> {
+pub(crate) fn process_payout_round(ctx: Context<ProcessPayoutRound>) -> Result<()> {
     let circle = &mut ctx.accounts.circle;
     
     // Validate circle is active
@@ -1862,7 +1935,7 @@ pub fn process_payout_round(ctx: Context<ProcessPayoutRound>) -> Result<()> {
             // Random selection from remaining members
             let remaining_members: Vec<Pubkey> = circle.members
                 .iter()
-                .filter(|&&member| {
+                .filter(|&&_member| {
                     // Filter out members who already received payout
                     // This would need to be tracked in member accounts
                     true

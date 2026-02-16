@@ -1,392 +1,468 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletWrapper } from '@/components/WalletWrapper';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { 
-  User, 
-  Shield, 
-  Star, 
-  TrendingUp, 
-  Award,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { motion } from "framer-motion";
+import {
+  User,
+  Wallet,
+  Shield,
+  Copy,
+  Check,
+  Edit3,
+  Save,
+  X,
+  Users,
+  Calendar,
+  ExternalLink,
   Settings,
-  Target,
-  BarChart3
-} from 'lucide-react';
-import { TrustTier, UserStats } from '@/types/circles';
-import { circleService } from '@/services/circle-service';
+} from "lucide-react";
+import CircleCard from "@/components/circles/CircleCard";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useCircleStore } from "@/stores/circleStore";
+import { useTrustStore } from "@/stores/trustStore";
+import { fetchMyCircles, fetchUserStats } from "@/services/circle-service";
+import { fetchTrustScore } from "@/services/trust-service";
+import { shortenAddress, formatDate, getTrustTierColor, cn } from "@/lib/utils";
+import type { TrustTier } from "@/types";
 
-interface TrustScoreBreakdown {
-  paymentReliability: number;
-  circlesCompleted: number;
-  circlesDefaulted: number;
-  totalContributions: number;
-  onTimePayments: number;
-  latePayments: number;
-  overallScore: number;
-  tier: TrustTier;
+function ConnectWalletPrompt() {
+  return (
+    <div className="flex-1 flex items-center justify-center px-4">
+      <motion.div
+        className="text-center max-w-md"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/10 border border-white/20 mb-6">
+          <Wallet className="w-10 h-10 text-white/70" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-3">
+          Connect Your Wallet
+        </h2>
+        <p className="text-white/50 mb-6">
+          Connect your Solana wallet to view your profile.
+        </p>
+      </motion.div>
+    </div>
+  );
 }
 
 export default function ProfilePage() {
-  const { connected, publicKey } = useWallet();
-  const [trustScore, setTrustScore] = useState<TrustScoreBreakdown | null>(null);
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const { publicKey, connected } = useWallet();
+  const {
+    myCircles,
+    setMyCircles,
+    userStats,
+    setUserStats,
+    isCacheStale: isCircleCacheStale,
+  } = useCircleStore();
+  const {
+    score,
+    tier,
+    setBreakdown,
+    isCacheStale: isTrustCacheStale,
+  } = useTrustStore();
+
+  const [displayName, setDisplayName] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [tempName, setTempName] = useState("");
+  const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [savingName, setSavingName] = useState(false);
 
-  // Load profile data
-  useEffect(() => {
-    const loadProfileData = async () => {
-      if (connected && publicKey) {
-        try {
-          setLoading(true);
-          
-          // Load user stats
-          const stats = await circleService.getUserStats(publicKey);
-          setUserStats(stats);
+  const walletAddress = publicKey?.toBase58() || "";
 
-          // Mock trust score data
-          setTrustScore({
-            paymentReliability: 95,
-            circlesCompleted: 2,
-            circlesDefaulted: 0,
-            totalContributions: 8,
-            onTimePayments: 7,
-            latePayments: 1,
-            overallScore: 650,
-            tier: TrustTier.Silver
-          });
-        } catch (error) {
-          console.error('Error loading profile data:', error);
-        } finally {
-          setLoading(false);
-        }
+  const loadProfile = useCallback(async () => {
+    if (!publicKey) return;
+    const wallet = publicKey.toBase58();
+
+    setLoading(true);
+    try {
+      const promises: Promise<void>[] = [];
+
+      if (isCircleCacheStale("myCircles")) {
+        promises.push(
+          fetchMyCircles(wallet).then((circles) => setMyCircles(circles))
+        );
+        promises.push(
+          fetchUserStats(wallet).then((stats) => setUserStats(stats))
+        );
       }
-    };
 
-    loadProfileData();
-  }, [connected, publicKey]);
+      if (isTrustCacheStale()) {
+        promises.push(
+          fetchTrustScore(wallet)
+            .then((breakdown) => setBreakdown(breakdown))
+            .catch(() => {
+              // Trust score may not be initialized
+            })
+        );
+      }
+
+      await Promise.allSettled(promises);
+    } catch {
+      // Errors handled individually
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    publicKey,
+    isCircleCacheStale,
+    isTrustCacheStale,
+    setMyCircles,
+    setUserStats,
+    setBreakdown,
+  ]);
+
+  useEffect(() => {
+    if (connected && publicKey) {
+      loadProfile();
+    }
+  }, [connected, publicKey, loadProfile]);
+
+  const copyAddress = () => {
+    navigator.clipboard.writeText(walletAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveName = async () => {
+    setSavingName(true);
+    try {
+      await fetch(`/api/users/${walletAddress}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display_name: tempName }),
+      });
+      setDisplayName(tempName);
+      setEditingName(false);
+    } catch {
+      // Failed to save
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const startEditing = () => {
+    setTempName(displayName);
+    setEditingName(true);
+  };
+
+  const cancelEditing = () => {
+    setTempName(displayName);
+    setEditingName(false);
+  };
 
   if (!connected) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center">
-            <User className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
-            <p className="text-gray-600 mb-6">
-              Connect your Solana wallet to view your profile and trust score
-            </p>
-            <WalletWrapper />
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <ConnectWalletPrompt />;
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-md mx-auto space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const tierColor = getTrustTierColor(tier);
+  const memberSince = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
-  const getTierInfo = (tier: TrustTier) => {
-    switch (tier) {
-      case TrustTier.Platinum:
-        return { name: 'Platinum', color: 'bg-purple-100 text-purple-800', icon: '💎', min: 750, max: 1000 };
-      case TrustTier.Gold:
-        return { name: 'Gold', color: 'bg-yellow-100 text-yellow-800', icon: '🥇', min: 500, max: 749 };
-      case TrustTier.Silver:
-        return { name: 'Silver', color: 'bg-blue-100 text-blue-800', icon: '🥈', min: 250, max: 499 };
-      default:
-        return { name: 'Newcomer', color: 'bg-gray-100 text-gray-800', icon: '🆕', min: 0, max: 249 };
-    }
-  };
-
-  const getNextTierInfo = (currentTier: TrustTier) => {
-    switch (currentTier) {
-      case TrustTier.Newcomer:
-        return { name: 'Silver', target: 250, progress: (trustScore?.overallScore || 0) / 250 * 100 };
-      case TrustTier.Silver:
-        return { name: 'Gold', target: 500, progress: ((trustScore?.overallScore || 0) - 250) / 250 * 100 };
-      case TrustTier.Gold:
-        return { name: 'Platinum', target: 750, progress: ((trustScore?.overallScore || 0) - 500) / 250 * 100 };
-      default:
-        return { name: 'Max', target: 1000, progress: 100 };
-    }
-  };
-
-  const tierInfo = trustScore ? getTierInfo(trustScore.tier) : null;
-  const nextTierInfo = trustScore ? getNextTierInfo(trustScore.tier) : null;
+  const activeCircles = myCircles.filter(
+    (c) => c.status === "active" || c.status === "forming"
+  );
+  const completedCircles = myCircles.filter(
+    (c) => c.status === "completed"
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="max-w-md mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Profile</h1>
-              <p className="text-sm text-gray-500">
-                {publicKey?.toBase58().slice(0, 8)}...{publicKey?.toBase58().slice(-8)}
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4" />
-              </Button>
-              <WalletWrapper />
-            </div>
-          </div>
+    <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 pb-24">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">
+            Profile
+          </h1>
+          <p className="text-white/50 text-sm">
+            Manage your account and view your activity.
+          </p>
+        </motion.div>
+
+        <div className="space-y-6">
+          {/* User Info Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                  {/* Avatar */}
+                  <div className="w-20 h-20 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
+                    <User className="w-10 h-10 text-white" />
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    {/* Display Name */}
+                    <div className="flex items-center gap-2 mb-2">
+                      {editingName ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={tempName}
+                            onChange={(e) => setTempName(e.target.value)}
+                            placeholder="Enter display name"
+                            className="h-8 text-sm max-w-[200px]"
+                            maxLength={30}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={handleSaveName}
+                            disabled={savingName}
+                          >
+                            <Save className="w-4 h-4 text-green-400" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={cancelEditing}
+                          >
+                            <X className="w-4 h-4 text-white/40" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <h2 className="text-xl font-bold text-white">
+                            {displayName || "Anonymous User"}
+                          </h2>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={startEditing}
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-white/40" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Wallet Address */}
+                    <button
+                      onClick={copyAddress}
+                      className="flex items-center gap-1.5 text-sm text-white/50 hover:text-white/70 transition-colors mb-3"
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      {shortenAddress(walletAddress, 6)}
+                      {copied ? (
+                        <Check className="w-3 h-3 text-green-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+
+                    {/* Tags */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={tier as TrustTier}>
+                        <Shield className="w-3 h-3 mr-1" />
+                        {tier.charAt(0).toUpperCase() + tier.slice(1)} - {score}
+                      </Badge>
+                      <Badge variant="outline">
+                        <Calendar className="w-3 h-3 mr-1" />
+                        Member since {memberSince}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Quick Stats */}
+                  <div className="grid grid-cols-2 gap-3 text-center sm:text-right">
+                    <div>
+                      <p className="text-lg font-bold text-white">
+                        {userStats?.active_circles ?? 0}
+                      </p>
+                      <p className="text-xs text-white/40">Active Circles</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-green-400">
+                        ${userStats?.total_yield_earned?.toFixed(2) ?? "0.00"}
+                      </p>
+                      <p className="text-xs text-white/40">Yield Earned</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-white">
+                        ${userStats?.total_contributed?.toLocaleString() ?? "0"}
+                      </p>
+                      <p className="text-xs text-white/40">Contributed</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-white">
+                        ${userStats?.total_received?.toLocaleString() ?? "0"}
+                      </p>
+                      <p className="text-xs text-white/40">Received</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Circle History */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5 text-white/60" />
+                  Circle History
+                </CardTitle>
+                <Link href="/circles">
+                  <Button variant="ghost" size="sm" className="text-white/50">
+                    View All
+                  </Button>
+                </Link>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="space-y-3">
+                    {[...Array(3)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-20 bg-white/5 rounded-lg animate-pulse"
+                      />
+                    ))}
+                  </div>
+                ) : myCircles.length > 0 ? (
+                  <div className="space-y-4">
+                    {activeCircles.length > 0 && (
+                      <div>
+                        <p className="text-xs text-white/40 uppercase tracking-wider mb-2">
+                          Active ({activeCircles.length})
+                        </p>
+                        <div className="space-y-2">
+                          {activeCircles.map((circle) => (
+                            <CircleCard key={circle.id} circle={circle} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {completedCircles.length > 0 && (
+                      <div>
+                        <p className="text-xs text-white/40 uppercase tracking-wider mb-2">
+                          Completed ({completedCircles.length})
+                        </p>
+                        <div className="space-y-2">
+                          {completedCircles.map((circle) => (
+                            <CircleCard key={circle.id} circle={circle} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-10">
+                    <Users className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                    <p className="text-white/40 text-sm mb-4">
+                      You have not participated in any circles yet.
+                    </p>
+                    <Link href="/discover">
+                      <Button size="sm">Discover Circles</Button>
+                    </Link>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Settings */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-white/40" />
+                  Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Display Name Setting */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-white/[0.03] border border-white/5">
+                  <div>
+                    <p className="text-sm text-white font-medium">
+                      Display Name
+                    </p>
+                    <p className="text-xs text-white/40">
+                      {displayName || "Not set - defaults to shortened address"}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={startEditing}
+                    className="text-white/60"
+                  >
+                    <Edit3 className="w-4 h-4 mr-1" />
+                    Edit
+                  </Button>
+                </div>
+
+                {/* Wallet Info */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-white/[0.03] border border-white/5">
+                  <div>
+                    <p className="text-sm text-white font-medium">
+                      Connected Wallet
+                    </p>
+                    <p className="text-xs text-white/40 font-mono">
+                      {shortenAddress(walletAddress, 8)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={copyAddress}
+                    className="text-white/50"
+                  >
+                    {copied ? (
+                      <Check className="w-4 h-4 text-green-400" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+
+                {/* Explorer Link */}
+                <a
+                  href={`https://explorer.solana.com/address/${walletAddress}?cluster=devnet`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between p-3 rounded-lg bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-colors"
+                >
+                  <div>
+                    <p className="text-sm text-white font-medium">
+                      View on Explorer
+                    </p>
+                    <p className="text-xs text-white/40">
+                      Solana Explorer (Devnet)
+                    </p>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-white/40" />
+                </a>
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-md mx-auto p-4 space-y-6">
-        {/* Trust Score Card */}
-        {trustScore && (
-          <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-            <CardContent className="p-6 text-center">
-              <div className="mb-4">
-                <div className="text-6xl font-bold mb-2">
-                  {trustScore.overallScore}
-                </div>
-                <div className="text-blue-100">Trust Score</div>
-              </div>
-              
-              <Badge className={`${tierInfo?.color} text-lg px-4 py-2 mb-4`}>
-                <span className="mr-2">{tierInfo?.icon}</span>
-                {tierInfo?.name}
-              </Badge>
-
-              {nextTierInfo && nextTierInfo.name !== 'Max' && (
-                <div className="mt-4">
-                  <div className="text-sm text-blue-100 mb-2">
-                    Progress to {nextTierInfo.name}
-                  </div>
-                  <div className="w-full bg-blue-200 rounded-full h-2">
-                    <div 
-                      className="bg-white h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, nextTierInfo.progress)}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-blue-100 mt-1">
-                    {Math.round(nextTierInfo.progress)}% complete
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Score Breakdown */}
-        {trustScore && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center">
-                <BarChart3 className="h-5 w-5 mr-2" />
-                Score Breakdown
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">Payment Reliability</span>
-                  </div>
-                  <div className="text-sm font-semibold">{trustScore.paymentReliability}%</div>
-                </div>
-                <Progress value={trustScore.paymentReliability} className="h-2" />
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Award className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm">Circles Completed</span>
-                  </div>
-                  <div className="text-sm font-semibold">{trustScore.circlesCompleted}</div>
-                </div>
-                <Progress value={(trustScore.circlesCompleted / 5) * 100} className="h-2" />
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                    <span className="text-sm">Defaults</span>
-                  </div>
-                  <div className="text-sm font-semibold">{trustScore.circlesDefaulted}</div>
-                </div>
-                <Progress value={trustScore.circlesDefaulted > 0 ? 0 : 100} className="h-2" />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Activity Stats */}
-        {userStats && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center">
-                <TrendingUp className="h-5 w-5 mr-2" />
-                Activity Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {userStats.circlesJoined}
-                  </div>
-                  <div className="text-sm text-gray-500">Circles Joined</div>
-                </div>
-                <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">
-                    {userStats.circlesCompleted}
-                  </div>
-                  <div className="text-sm text-gray-500">Completed</div>
-                </div>
-                <div className="text-center p-3 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">
-                    ${userStats.totalContributions.toFixed(0)}
-                  </div>
-                  <div className="text-sm text-gray-500">Total Contributed</div>
-                </div>
-                <div className="text-center p-3 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">
-                    ${userStats.totalPayouts.toFixed(0)}
-                  </div>
-                  <div className="text-sm text-gray-500">Total Received</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Payment History */}
-        {trustScore && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center">
-                <Clock className="h-5 w-5 mr-2" />
-                Payment History
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <div>
-                      <div className="font-medium">On-Time Payments</div>
-                      <div className="text-sm text-gray-500">{trustScore.onTimePayments} payments</div>
-                    </div>
-                  </div>
-                  <div className="text-green-600 font-semibold">
-                    {Math.round((trustScore.onTimePayments / trustScore.totalContributions) * 100)}%
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Clock className="h-5 w-5 text-yellow-500" />
-                    <div>
-                      <div className="font-medium">Late Payments</div>
-                      <div className="text-sm text-gray-500">{trustScore.latePayments} payments</div>
-                    </div>
-                  </div>
-                  <div className="text-yellow-600 font-semibold">
-                    {Math.round((trustScore.latePayments / trustScore.totalContributions) * 100)}%
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Improvement Tips */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <Target className="h-5 w-5 mr-2" />
-              Improve Your Score
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-                <Star className="h-5 w-5 text-blue-500 mt-0.5" />
-                <div>
-                  <div className="font-medium text-blue-900">Make On-Time Payments</div>
-                  <div className="text-sm text-blue-700">
-                    Pay your contributions on time to maintain high reliability
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
-                <Award className="h-5 w-5 text-green-500 mt-0.5" />
-                <div>
-                  <div className="font-medium text-green-900">Complete More Circles</div>
-                  <div className="text-sm text-green-700">
-                    Successfully complete circles to boost your score
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-start space-x-3 p-3 bg-purple-50 rounded-lg">
-                <Shield className="h-5 w-5 text-purple-500 mt-0.5" />
-                <div>
-                  <div className="font-medium text-purple-900">Avoid Defaults</div>
-                  <div className="text-sm text-purple-700">
-                    Never default on payments to maintain perfect record
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Settings</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button variant="outline" className="w-full justify-start">
-              <Settings className="h-4 w-4 mr-2" />
-              Account Settings
-            </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <Shield className="h-4 w-4 mr-2" />
-              Privacy & Security
-            </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <User className="h-4 w-4 mr-2" />
-              Profile Information
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
+    </main>
   );
 }

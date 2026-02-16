@@ -1,37 +1,68 @@
-import type { Metadata } from 'next'
-import './globals.css'
-import { Providers } from './providers'
-import { WalletContextProvider } from '@/contexts/WalletContext'
-import { ToastProvider } from '@/components/ui/toast'
-import { BottomNavigation } from '@/components/navigation/BottomNavigation'
+import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
+import { Providers } from "./providers";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+});
 
 export const metadata: Metadata = {
-  title: 'Halo Protocol - Finance Powered by Community & Solana',
-  description: 'Join trusted savings circles, earn yield, and build your financial reputation in the DeFi ecosystem.',
-  keywords: ['Solana', 'DeFi', 'ROSCA', 'Savings', 'Lending', 'Trust Score', 'Community Finance'],
-  authors: [{ name: 'Halo Protocol Team' }],
-  viewport: 'width=device-width, initial-scale=1',
-}
+  title: "Halo Protocol",
+  description:
+    "Decentralized lending circles with on-chain credit scoring on Solana",
+  icons: {
+    icon: "/favicon.ico",
+  },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Halo Protocol",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#0B0F1A",
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="font-sans antialiased">
-        <WalletContextProvider>
-          <ToastProvider>
-            <Providers>
-              <div className="min-h-screen pb-20">
-                {children}
-              </div>
-              <BottomNavigation />
-            </Providers>
-          </ToastProvider>
-        </WalletContextProvider>
+    <html lang="en" className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
+      <body className="min-h-screen bg-[#0B0F1A] font-sans antialiased flex flex-col">
+        <Providers>
+          <Navbar />
+          <main className="flex-1 pt-16">{children}</main>
+          <Footer />
+        </Providers>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js');
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
-  )
+  );
 }

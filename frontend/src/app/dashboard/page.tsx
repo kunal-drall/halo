@@ -1,332 +1,385 @@
-'use client'
+"use client";
 
-import { useAuth } from '@/lib/auth'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { TrustScoreCard } from '@/components/TrustScoreCard'
-import { CirclesList } from '@/components/CirclesList'
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
-import { motion } from 'framer-motion'
-import { 
-  Users, 
-  Coins, 
-  TrendingUp, 
-  Vote, 
-  Shield, 
-  CircleDollarSign,
-  ArrowRight,
-  Plus,
-  Activity,
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
   Wallet,
-  User,
-  LogOut
-} from 'lucide-react'
-import Link from 'next/link'
+  TrendingUp,
+  Users,
+  Shield,
+  ArrowRight,
+  RefreshCw,
+  PlusCircle,
+} from "lucide-react";
+import StatsCards from "@/components/dashboard/StatsCards";
+import RecentActivity from "@/components/dashboard/RecentActivity";
+import CircleCard from "@/components/circles/CircleCard";
+import TrustScoreWidget from "@/components/trust/TrustScoreWidget";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCircleStore } from "@/stores/circleStore";
+import { useTrustStore } from "@/stores/trustStore";
+import { fetchMyCircles, fetchUserStats } from "@/services/circle-service";
+import { fetchTrustScore } from "@/services/trust-service";
+import type { ActivityLog } from "@/types";
 
+function SkeletonCard() {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/5 p-6 animate-pulse">
+      <div className="h-4 bg-white/10 rounded w-3/4 mb-4" />
+      <div className="h-3 bg-white/10 rounded w-1/2 mb-2" />
+      <div className="h-3 bg-white/10 rounded w-2/3" />
+    </div>
+  );
+}
+
+function SkeletonStats() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {[...Array(4)].map((_, i) => (
+        <div
+          key={i}
+          className="rounded-lg border border-white/10 bg-white/5 p-4 animate-pulse"
+        >
+          <div className="h-3 bg-white/10 rounded w-1/2 mb-3" />
+          <div className="h-6 bg-white/10 rounded w-3/4" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ConnectWalletPrompt() {
+  return (
+    <div className="flex-1 flex items-center justify-center px-4">
+      <motion.div
+        className="text-center max-w-md"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/10 border border-white/20 mb-6">
+          <Wallet className="w-10 h-10 text-white/70" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-3">
+          Connect Your Wallet
+        </h2>
+        <p className="text-white/50 mb-6 leading-relaxed">
+          Connect your Solana wallet to view your dashboard, manage circles, and
+          track your trust score.
+        </p>
+        <p className="text-white/30 text-sm">
+          Use the wallet button in the top navigation bar to connect.
+        </p>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
-  const { authenticated } = useAuth()
+  const { publicKey, connected } = useWallet();
+  const {
+    myCircles,
+    userStats,
+    setMyCircles,
+    setUserStats,
+    setLoading: setCircleLoading,
+    setError: setCircleError,
+    isCacheStale: isCircleCacheStale,
+    loading: circleLoading,
+  } = useCircleStore();
+  const {
+    score,
+    tier,
+    setBreakdown,
+    setLoading: setTrustLoading,
+    setError: setTrustError,
+    isCacheStale: isTrustCacheStale,
+    loading: trustLoading,
+  } = useTrustStore();
 
-  if (!authenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <Card className="w-full max-w-md border-primary/20">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-primary/10 to-secondary/10">
-                <Wallet className="h-8 w-8 text-primary" />
-              </div>
-              <CardTitle className="text-gradient-primary">Connect Your Account</CardTitle>
-              <CardDescription>
-                You need to sign in to access the dashboard
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center">
-              <WalletMultiButton className="!bg-primary hover:!bg-primary/90" />
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-    )
-  }
+  const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Mock data for demonstration
-  const userStats = {
-    activeCircles: 3,
-    totalContributions: 2500,
-    yieldEarned: 127.5,
-    trustScore: 750
-  }
+  const loadDashboardData = useCallback(
+    async (forceRefresh = false) => {
+      if (!publicKey) return;
+      const wallet = publicKey.toBase58();
 
-  const recentActivity = [
-    { type: 'contribution', amount: 500, circle: 'Tech Savers Circle', date: '2024-01-15' },
-    { type: 'yield', amount: 25.3, circle: 'Community Fund', date: '2024-01-14' },
-    { type: 'distribution', amount: 2500, circle: 'Startup Circle', date: '2024-01-12' },
-  ]
+      const shouldFetchCircles = forceRefresh || isCircleCacheStale("myCircles");
+      const shouldFetchTrust = forceRefresh || isTrustCacheStale();
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
+      try {
+        setCircleLoading(true);
+        setTrustLoading(true);
+
+        const promises: Promise<void>[] = [];
+
+        if (shouldFetchCircles) {
+          promises.push(
+            fetchMyCircles(wallet).then((circles) => {
+              setMyCircles(circles);
+            })
+          );
+          promises.push(
+            fetchUserStats(wallet).then((stats) => {
+              setUserStats(stats);
+            })
+          );
+        }
+
+        if (shouldFetchTrust) {
+          promises.push(
+            fetchTrustScore(wallet)
+              .then((breakdown) => {
+                setBreakdown(breakdown);
+              })
+              .catch(() => {
+                // Trust score might not be initialized yet
+              })
+          );
+        }
+
+        await Promise.allSettled(promises);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load dashboard data";
+        setCircleError(message);
+      } finally {
+        setCircleLoading(false);
+        setTrustLoading(false);
+        setInitialLoad(false);
       }
-    }
-  }
+    },
+    [
+      publicKey,
+      isCircleCacheStale,
+      isTrustCacheStale,
+      setMyCircles,
+      setUserStats,
+      setBreakdown,
+      setCircleLoading,
+      setTrustLoading,
+      setCircleError,
+    ]
+  );
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 }
+  useEffect(() => {
+    if (connected && publicKey) {
+      loadDashboardData();
     }
-  }
+  }, [connected, publicKey, loadDashboardData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadDashboardData(true);
+    setRefreshing(false);
+  };
+
+  const isLoading = (circleLoading || trustLoading) && initialLoad;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-primary/5">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center">
-                <CircleDollarSign className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-display font-bold text-gradient-primary">
-                Halo Protocol
-              </span>
-            </Link>
-            
-            <div className="flex items-center gap-4">
-              <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !text-sm !py-2 !px-4 !rounded-lg" />
-            </div>
+    <>
+      {!connected ? (
+        <ConnectWalletPrompt />
+      ) : (
+        <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 pb-24">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <h1 className="text-2xl sm:text-3xl font-bold text-white">
+                Dashboard
+              </h1>
+              <p className="text-white/50 text-sm mt-1">
+                Welcome back. Here is your overview.
+              </p>
+            </motion.div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw
+                className={`w-4 h-4 text-white/60 ${refreshing ? "animate-spin" : ""}`}
+              />
+            </Button>
           </div>
-        </div>
-      </header>
 
-      <main className="container mx-auto px-4 py-8">
-        {/* Welcome Section */}
-        <motion.div 
-          className="mb-8"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          <motion.div variants={itemVariants}>
-            <h1 className="text-3xl font-display font-bold mb-2 text-gradient-primary">Welcome back! 👋</h1>
-            <p className="text-muted-foreground">
-              Manage your circles, track contributions, and monitor your DeFi positions.
-            </p>
-          </motion.div>
-        </motion.div>
-
-        {/* Stats Cards */}
-        <motion.div 
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          <motion.div variants={itemVariants}>
-            <Card className="hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-white to-primary/5">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Active Circles</p>
-                    <p className="text-2xl font-bold text-gradient-primary">{userStats.activeCircles}</p>
+          <AnimatePresence mode="wait">
+            {isLoading ? (
+              <motion.div
+                key="skeleton"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-6"
+              >
+                <SkeletonStats />
+                <div className="grid lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 space-y-4">
+                    <SkeletonCard />
+                    <SkeletonCard />
                   </div>
-                  <div className="p-2 rounded-full bg-gradient-to-r from-primary/10 to-primary/5">
-                    <Users className="h-6 w-6 text-primary" />
+                  <SkeletonCard />
+                </div>
+                <SkeletonCard />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="content"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="space-y-6"
+              >
+                {/* Stats Cards */}
+                {userStats && <StatsCards stats={userStats} />}
+
+                {/* Main Content Grid */}
+                <div className="grid lg:grid-cols-3 gap-6">
+                  {/* My Circles */}
+                  <div className="lg:col-span-2">
+                    <Card className="border-white/5 bg-white/[0.02]">
+                      <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle className="text-lg">My Circles</CardTitle>
+                        <Link href="/circles/create">
+                          <Button variant="ghost" size="sm" className="gap-1.5">
+                            <PlusCircle className="w-4 h-4" />
+                            Create
+                          </Button>
+                        </Link>
+                      </CardHeader>
+                      <CardContent>
+                        {myCircles.length > 0 ? (
+                          <div className="space-y-3">
+                            {myCircles.slice(0, 5).map((circle) => (
+                              <CircleCard key={circle.id} circle={circle} />
+                            ))}
+                            {myCircles.length > 5 && (
+                              <Link href="/circles">
+                                <Button
+                                  variant="ghost"
+                                  className="w-full gap-2 text-white/50"
+                                >
+                                  View all {myCircles.length} circles
+                                  <ArrowRight className="w-4 h-4" />
+                                </Button>
+                              </Link>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-center py-10">
+                            <Users className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                            <p className="text-white/40 mb-4">
+                              You have not joined any circles yet.
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                              <Link href="/discover">
+                                <Button variant="outline" size="sm">
+                                  Discover Circles
+                                </Button>
+                              </Link>
+                              <Link href="/circles/create">
+                                <Button size="sm">Create Circle</Button>
+                              </Link>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Trust Score Widget */}
+                  <div>
+                    <Card className="border-white/5 bg-white/[0.02]">
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Shield className="w-5 h-5 text-white/70" />
+                          Trust Score
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {score > 0 ? (
+                          <div className="space-y-4">
+                            <TrustScoreWidget score={score} tier={tier} />
+                            <Link href="/trust-score">
+                              <Button
+                                variant="ghost"
+                                className="w-full gap-2 text-white/50 mt-2"
+                                size="sm"
+                              >
+                                View Details
+                                <ArrowRight className="w-4 h-4" />
+                              </Button>
+                            </Link>
+                          </div>
+                        ) : (
+                          <div className="text-center py-6">
+                            <Shield className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                            <p className="text-white/40 text-sm mb-4">
+                              Initialize your trust score to get started.
+                            </p>
+                            <Link href="/trust-score">
+                              <Button size="sm">Initialize Score</Button>
+                            </Link>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Quick Stats */}
+                    <Card className="border-white/5 bg-white/[0.02] mt-4">
+                      <CardContent className="p-4">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-white/50 flex items-center gap-2">
+                              <TrendingUp className="w-4 h-4" />
+                              Yield Earned
+                            </span>
+                            <span className="text-green-400 font-medium">
+                              {userStats
+                                ? `$${userStats.total_yield_earned.toFixed(2)}`
+                                : "$0.00"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-white/50 flex items-center gap-2">
+                              <Users className="w-4 h-4" />
+                              Active Circles
+                            </span>
+                            <span className="text-white font-medium">
+                              {userStats?.active_circles ?? 0}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
 
-          <motion.div variants={itemVariants}>
-            <Card className="hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-white to-secondary/5">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Contributed</p>
-                    <p className="text-2xl font-bold text-gradient-primary">${userStats.totalContributions.toLocaleString()}</p>
-                  </div>
-                  <div className="p-2 rounded-full bg-gradient-to-r from-secondary/10 to-secondary/5">
-                    <Coins className="h-6 w-6 text-secondary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div variants={itemVariants}>
-            <Card className="hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-white to-accent/5">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Yield Earned</p>
-                    <p className="text-2xl font-bold text-gradient-accent">${userStats.yieldEarned}</p>
-                  </div>
-                  <div className="p-2 rounded-full bg-gradient-to-r from-accent/10 to-accent/5">
-                    <TrendingUp className="h-6 w-6 text-accent" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div variants={itemVariants}>
-            <Card className="hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-white to-purple-50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Trust Score</p>
-                    <p className="text-2xl font-bold text-purple-600">{userStats.trustScore}</p>
-                  </div>
-                  <div className="p-2 rounded-full bg-gradient-to-r from-purple-100 to-purple-50">
-                    <Shield className="h-6 w-6 text-purple-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </motion.div>
-
-        {/* Main Content */}
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Dashboard */}
-          <div className="lg:col-span-2">
-            <Tabs defaultValue="circles" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="circles">My Circles</TabsTrigger>
-                <TabsTrigger value="lending">Lending</TabsTrigger>
-                <TabsTrigger value="governance">Governance</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="circles" className="space-y-4">
-                <motion.div 
-                  className="flex justify-between items-center"
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  <h2 className="text-xl font-semibold">Your Circles</h2>
-                  <Button asChild className="bg-gradient-to-r from-primary to-secondary hover:shadow-lg">
-                    <Link href="/circles/create">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Circle
-                    </Link>
-                  </Button>
-                </motion.div>
-                <CirclesList />
-              </TabsContent>
-
-              <TabsContent value="lending" className="space-y-4">
-                <motion.div
-                  className="flex justify-between items-center"
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  <h2 className="text-xl font-semibold">Yield Earnings</h2>
-                </motion.div>
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="text-center text-muted-foreground">
-                      <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="font-medium mb-2">Yield Coming Soon</p>
-                      <p className="text-sm">Your circle contributions will earn yield automatically</p>
-                    </div>
+                {/* Recent Activity */}
+                <Card className="border-white/5 bg-white/[0.02]">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Recent Activity</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <RecentActivity activities={activities} />
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+      )}
 
-              <TabsContent value="governance" className="space-y-4">
-                <motion.div 
-                  className="flex justify-between items-center"
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  <h2 className="text-xl font-semibold">Active Proposals</h2>
-                  <Button variant="outline" asChild>
-                    <Link href="/governance">
-                      View All <ArrowRight className="h-4 w-4 ml-2" />
-                    </Link>
-                  </Button>
-                </motion.div>
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="text-center text-muted-foreground">
-                      <Vote className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No active proposals at the moment</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Trust Score */}
-            <TrustScoreCard />
-
-            {/* Recent Activity */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-center justify-between py-2 border-b last:border-b-0">
-                    <div>
-                      <p className="text-sm font-medium">
-                        {activity.type === 'contribution' && '💰 Contribution'}
-                        {activity.type === 'yield' && '📈 Yield Earned'}
-                        {activity.type === 'distribution' && '🎉 Distribution'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{activity.circle}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">${activity.amount}</p>
-                      <p className="text-xs text-muted-foreground">{activity.date}</p>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button className="w-full" variant="outline" asChild>
-                  <Link href="/circles">Browse Circles</Link>
-                </Button>
-                <Button className="w-full" variant="outline" asChild>
-                  <Link href="/lending">Lending Dashboard</Link>
-                </Button>
-                <Button className="w-full" variant="outline" asChild>
-                  <Link href="/trust-score">Improve Trust Score</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </main>
-    </div>
-  )
+    </>
+  );
 }

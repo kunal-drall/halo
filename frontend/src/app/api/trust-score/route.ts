@@ -1,181 +1,89 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PublicKey } from '@solana/web3.js';
-import { queryOne } from '@/lib/db';
+import { NextRequest } from "next/server";
+import { PublicKey } from "@solana/web3.js";
+import { connection } from "@/lib/helius";
+import { getCached, setCache } from "@/lib/redis";
+import { PROGRAM_ID, SEEDS } from "@/lib/constants";
+import { getTrustTier } from "@/lib/constants";
+import { apiError, apiSuccess, checkRateLimit } from "@/lib/api-utils";
+import type { TrustScoreBreakdown } from "@/types";
 
-export async function GET(request: NextRequest) {
+// GET /api/trust-score?address=X — get trust score for a wallet
+export async function GET(req: NextRequest) {
+  const rateLimited = await checkRateLimit(req);
+  if (rateLimited) return rateLimited;
+
   try {
-    const { searchParams } = new URL(request.url);
-    const userAddress = searchParams.get('user') || searchParams.get('address');
+    const { searchParams } = new URL(req.url);
+    const address = searchParams.get("address");
 
-    if (!userAddress) {
-      return NextResponse.json(
-        { error: 'User address is required' },
-        { status: 400 }
-      );
-    }
+    if (!address) return apiError("Missing address parameter");
 
-    let userPubkey: PublicKey;
-    try {
-      userPubkey = new PublicKey(userAddress);
-    } catch (error) {
-      return NextResponse.json(
-        { error: 'Invalid public key format' },
-        { status: 400 }
-      );
-    }
+    // Check cache
+    const cacheKey = `trust:${address}`;
+    const cached = await getCached<TrustScoreBreakdown>(cacheKey);
+    if (cached) return apiSuccess(cached);
 
-    const trustScore = await getTrustScoreForUser(userPubkey.toBase58());
+    const walletKey = new PublicKey(address);
 
-    return NextResponse.json({
-      success: true,
-      data: trustScore,
-      trustScore: {
-        user: trustScore.user,
-        paymentReliability: trustScore.breakdown.paymentHistory.percentage,
-        circlesCompleted: trustScore.metadata.circlesCompleted,
-        circlesDefaulted: 0,
-        totalContributionsMade: trustScore.metadata.totalContributions,
-        onTimePayments: Math.floor(trustScore.metadata.totalContributions * 0.9),
-        latePayments: trustScore.metadata.missedContributions,
-        overallScore: trustScore.score,
-        tier: getTierNumber(trustScore.tier),
-        lastUpdated: trustScore.metadata.lastUpdated,
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching trust score:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    // Derive trust score PDA
+    const [trustPDA] = PublicKey.findProgramAddressSync(
+      [SEEDS.TRUST_SCORE, walletKey.toBuffer()],
+      PROGRAM_ID
     );
-  }
-}
 
-function getTierNumber(tierName: string): number {
-  switch (tierName) {
-    case 'Platinum': return 3;
-    case 'Gold': return 2;
-    case 'Silver': return 1;
-    default: return 0;
-  }
-}
+    // Fetch on-chain account data
+    const accountInfo = await connection.getAccountInfo(trustPDA);
 
-function getTierName(tier: number): string {
-  switch (tier) {
-    case 3: return 'Platinum';
-    case 2: return 'Gold';
-    case 1: return 'Silver';
-    default: return 'Newcomer';
-  }
-}
-
-function getStakeMultiplier(tier: number): number {
-  switch (tier) {
-    case 3: return 75;
-    case 2: return 100;
-    case 1: return 150;
-    default: return 200;
-  }
-}
-
-async function getTrustScoreForUser(pubkey: string) {
-  const user = await queryOne<any>(
-    'SELECT * FROM users WHERE pubkey = $1',
-    [pubkey]
-  );
-  
-  if (user) {
-    const score = user.trust_score || 100;
-    const tier = user.trust_tier || 0;
-    const tierName = getTierName(tier);
-    
-    const paymentHistoryScore = Math.min(400, Math.floor(score * 0.4));
-    const completionScore = Math.min(300, Math.floor(score * 0.3));
-    const defiActivityScore = Math.min(200, Math.floor(score * 0.2));
-    const socialProofScore = Math.min(100, Math.floor(score * 0.1));
-    
-    return {
-      user: pubkey,
-      score,
-      tier: tierName,
-      stakeMultiplier: getStakeMultiplier(tier),
-      breakdown: {
-        paymentHistory: {
-          score: paymentHistoryScore,
-          maxScore: 400,
-          weight: 40,
-          percentage: Math.round((paymentHistoryScore / 400) * 100)
-        },
-        circleCompletions: {
-          score: completionScore,
-          maxScore: 300,
-          weight: 30,
-          percentage: Math.round((completionScore / 300) * 100)
-        },
-        defiActivity: {
-          score: defiActivityScore,
-          maxScore: 200,
-          weight: 20,
-          percentage: Math.round((defiActivityScore / 200) * 100)
-        },
-        socialProofs: {
-          score: socialProofScore,
-          maxScore: 100,
-          weight: 10,
-          percentage: Math.round((socialProofScore / 100) * 100)
-        }
-      },
-      metadata: {
-        circlesCompleted: user.circles_completed || 0,
-        circlesJoined: user.circles_completed || 0,
-        totalContributions: user.total_contributions || 0,
-        missedContributions: user.late_payments || 0,
-        socialProofs: [],
-        lastUpdated: user.updated_at ? new Date(user.updated_at).getTime() : Date.now()
-      }
-    };
-  }
-
-  const baseScore = 100;
-  return {
-    user: pubkey,
-    score: baseScore,
-    tier: 'Newcomer',
-    stakeMultiplier: 200,
-    breakdown: {
-      paymentHistory: {
-        score: 40,
-        maxScore: 400,
-        weight: 40,
-        percentage: 10
-      },
-      circleCompletions: {
-        score: 30,
-        maxScore: 300,
-        weight: 30,
-        percentage: 10
-      },
-      defiActivity: {
-        score: 20,
-        maxScore: 200,
-        weight: 20,
-        percentage: 10
-      },
-      socialProofs: {
-        score: 10,
-        maxScore: 100,
-        weight: 10,
-        percentage: 10
-      }
-    },
-    metadata: {
-      circlesCompleted: 0,
-      circlesJoined: 0,
-      totalContributions: 0,
-      missedContributions: 0,
-      socialProofs: [],
-      lastUpdated: Date.now()
+    if (!accountInfo) {
+      // No trust score initialized yet
+      const defaultScore: TrustScoreBreakdown = {
+        score: 0,
+        tier: "newcomer",
+        payment_score: 0,
+        completion_score: 0,
+        defi_score: 0,
+        social_score: 0,
+        circles_completed: 0,
+        on_time_payments: 0,
+        total_payments: 0,
+      };
+      return apiSuccess(defaultScore);
     }
-  };
+
+    // Decode the account data using Anchor deserialization
+    // The first 8 bytes are the discriminator, then the struct fields
+    const data = accountInfo.data;
+    const offset = 8; // Skip discriminator
+
+    // Parse fields in order matching TrustScore struct in state.rs
+    const authority = new PublicKey(data.subarray(offset, offset + 32));
+    const score = data.readUInt16LE(offset + 32);
+    const paymentScore = data.readUInt16LE(offset + 34);
+    const completionScore = data.readUInt16LE(offset + 36);
+    const defiScore = data.readUInt16LE(offset + 38);
+    const socialScore = data.readUInt16LE(offset + 40);
+    const onTimePayments = data.readUInt32LE(offset + 42);
+    const totalPayments = data.readUInt32LE(offset + 46);
+    const circlesCompleted = data.readUInt32LE(offset + 50);
+
+    const tier = getTrustTier(score);
+
+    const breakdown: TrustScoreBreakdown = {
+      score,
+      tier: tier.label.toLowerCase() as TrustScoreBreakdown["tier"],
+      payment_score: paymentScore,
+      completion_score: completionScore,
+      defi_score: defiScore,
+      social_score: socialScore,
+      circles_completed: circlesCompleted,
+      on_time_payments: onTimePayments,
+      total_payments: totalPayments,
+    };
+
+    await setCache(cacheKey, breakdown, 600); // 10 min cache
+    return apiSuccess(breakdown);
+  } catch (err) {
+    console.error("Trust score error:", err);
+    return apiError("Internal server error", 500);
+  }
 }

@@ -35,6 +35,8 @@ pub struct Circle {
     pub payout_method: PayoutMethod,
     /// Order of payout recipients
     pub payout_queue: Vec<Pubkey>,
+    /// Bid amounts corresponding to payout_queue entries (for auction-based payouts)
+    pub payout_bid_amounts: Vec<u64>,
     /// Minimum trust tier required to join
     pub min_trust_tier: u8,
     /// Insurance pool account
@@ -213,7 +215,19 @@ impl Circle {
         4 + (1 + 4 + (32 + 8 + 8) * Self::MAX_MEMBERS + 8 + 33) * Self::MAX_DURATION as usize + // monthly_contributions
         8 + // total_pot
         1 + // bump
-        100 // extra space for future fields
+        // ROSCA-specific fields
+        1 + // payout_method
+        4 + 32 * Self::MAX_MEMBERS + // payout_queue vec
+        4 + 8 * Self::MAX_MEMBERS + // payout_bid_amounts vec
+        1 + // min_trust_tier
+        32 + // insurance_pool
+        1 + // circle_type
+        1 + 4 + 50 + // invite_code (Option<String> max 50 chars)
+        1 + // is_public
+        32 + // escrow_account
+        8 + // total_yield_earned
+        1 + 32 + // next_payout_recipient (Option<Pubkey>)
+        200 // extra space for future fields
     }
 }
 
@@ -232,7 +246,12 @@ impl Member {
         1 + // trust_tier
         1 + // contributions_missed
         1 + // bump
-        50 // extra space
+        // ROSCA-specific fields
+        1 + // payout_claimed
+        1 + // payout_position
+        8 + // insurance_staked
+        4 + (1 + 8 + 8 + 1 + 1) * Circle::MAX_DURATION as usize + // contribution_records vec
+        100 // extra space
     }
 }
 
@@ -440,33 +459,47 @@ impl TrustScore {
     pub fn calculate_score(&mut self) {
         // Payment history score (40% weight, max 400 points)
         let payment_ratio = if self.circles_joined > 0 {
-            let total_expected = self.circles_joined * 12; // Assume 12 month average
+            let total_expected = self.circles_joined.saturating_mul(12); // Assume 12 month average
             let success_rate = if total_expected > self.missed_contributions {
-                ((total_expected - self.missed_contributions) * 100) / total_expected
+                (total_expected.saturating_sub(self.missed_contributions))
+                    .saturating_mul(100)
+                    .checked_div(total_expected)
+                    .unwrap_or(0)
             } else { 0 };
             std::cmp::min(success_rate, 100)
         } else { 0 };
-        self.payment_history_score = ((payment_ratio as u16 * 400) / 100).min(400);
+        self.payment_history_score = (payment_ratio as u16)
+            .saturating_mul(400)
+            .checked_div(100)
+            .unwrap_or(0)
+            .min(400);
 
         // Circle completion score (30% weight, max 300 points)
         let completion_ratio = if self.circles_joined > 0 {
-            (self.circles_completed * 100) / self.circles_joined
+            self.circles_completed
+                .saturating_mul(100)
+                .checked_div(self.circles_joined)
+                .unwrap_or(0)
         } else { 0 };
-        self.completion_score = ((completion_ratio * 300) / 100).min(300);
+        self.completion_score = completion_ratio
+            .saturating_mul(300)
+            .checked_div(100)
+            .unwrap_or(0)
+            .min(300);
 
         // DeFi activity score (20% weight, max 200 points) - placeholder implementation
         self.defi_activity_score = std::cmp::min(self.defi_activity_score, 200);
 
         // Social proof score (10% weight, max 100 points)
         let verified_proofs = self.social_proofs.iter().filter(|p| p.verified).count();
-        self.social_proof_score = std::cmp::min((verified_proofs * 20) as u16, 100);
+        self.social_proof_score = std::cmp::min((verified_proofs as u16).saturating_mul(20), 100);
 
         // Calculate total score
-        self.score = self.payment_history_score + 
-                    self.completion_score + 
-                    self.defi_activity_score + 
-                    self.social_proof_score;
-        
+        self.score = self.payment_history_score
+            .saturating_add(self.completion_score)
+            .saturating_add(self.defi_activity_score)
+            .saturating_add(self.social_proof_score);
+
         self.update_tier();
     }
 }

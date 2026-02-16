@@ -1,131 +1,74 @@
-'use client';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type { TrustScoreBreakdown, TrustTier } from "@/types";
 
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { TrustScore, TrustTier } from '@/types/circles';
-import { PublicKey } from '@solana/web3.js';
-
-interface TrustStore {
-  // State
-  userScore: TrustScore | null;
+interface TrustState {
+  // Data
+  score: number;
   tier: TrustTier;
+  breakdown: TrustScoreBreakdown | null;
+
+  // Cache
+  lastFetch: number;
   loading: boolean;
   error: string | null;
-  lastFetch: number;
-  
+
   // Actions
-  fetchTrustScore: (userAddress: PublicKey) => Promise<void>;
-  updateTrustScore: (score: TrustScore) => void;
-  clearCache: () => void;
-  setError: (error: string | null) => void;
+  setScore: (score: number, tier: TrustTier) => void;
+  setBreakdown: (breakdown: TrustScoreBreakdown) => void;
   setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  clearCache: () => void;
+  isCacheStale: (ttlMs?: number) => boolean;
 }
 
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes for trust scores
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-export const useTrustStore = create<TrustStore>()(
+export const useTrustStore = create<TrustState>()(
   persist(
     (set, get) => ({
-      // Initial state
-      userScore: null,
-      tier: TrustTier.Newcomer,
+      score: 0,
+      tier: "newcomer",
+      breakdown: null,
+      lastFetch: 0,
       loading: false,
       error: null,
-      lastFetch: 0,
 
-      // Fetch trust score
-      fetchTrustScore: async (userAddress: PublicKey) => {
-        const { lastFetch } = get();
-        const now = Date.now();
-        
-        // Use cache if data is fresh
-        if (now - lastFetch < CACHE_TTL && get().userScore) {
-          return;
-        }
+      setScore: (score, tier) =>
+        set({ score, tier, lastFetch: Date.now() }),
 
-        set({ loading: true, error: null });
-        try {
-          // Try to fetch from API
-          const response = await fetch(`/api/trust-score?address=${userAddress.toBase58()}`);
-          
-          if (response.ok) {
-            const data = await response.json();
-            if (data.trustScore) {
-              set({ 
-                userScore: data.trustScore,
-                tier: data.trustScore.tier,
-                loading: false, 
-                lastFetch: now 
-              });
-              return;
-            }
-          }
+      setBreakdown: (breakdown) =>
+        set({
+          breakdown,
+          score: breakdown.score,
+          tier: breakdown.tier,
+          lastFetch: Date.now(),
+        }),
 
-          // Fallback to default trust score for new users
-          const defaultScore: TrustScore = {
-            user: userAddress.toBase58(),
-            paymentReliability: 0,
-            circlesCompleted: 0,
-            circlesDefaulted: 0,
-            totalContributionsMade: 0,
-            onTimePayments: 0,
-            latePayments: 0,
-            overallScore: 100,
-            tier: TrustTier.Newcomer,
-            lastUpdated: now,
-          };
+      setLoading: (loading) => set({ loading }),
 
-          set({ 
-            userScore: defaultScore,
-            tier: defaultScore.tier,
-            loading: false, 
-            lastFetch: now 
-          });
-        } catch (error) {
-          set({ 
-            error: error instanceof Error ? error.message : 'Failed to fetch trust score',
-            loading: false 
-          });
-        }
-      },
+      setError: (error) => set({ error }),
 
-      // Update trust score
-      updateTrustScore: (score: TrustScore) => {
-        set({ 
-          userScore: score,
-          tier: score.tier,
-          lastFetch: Date.now()
-        });
-      },
-
-      // Clear cache
-      clearCache: () => {
-        set({ 
-          userScore: null,
-          tier: TrustTier.Newcomer,
+      clearCache: () =>
+        set({
+          score: 0,
+          tier: "newcomer",
+          breakdown: null,
           lastFetch: 0,
-          error: null
-        });
-      },
+        }),
 
-      // Set error
-      setError: (error: string | null) => {
-        set({ error });
-      },
-
-      // Set loading
-      setLoading: (loading: boolean) => {
-        set({ loading });
+      isCacheStale: (ttlMs = CACHE_TTL) => {
+        return Date.now() - get().lastFetch > ttlMs;
       },
     }),
     {
-      name: 'trust-store',
+      name: "halo-trust",
       partialize: (state) => ({
-        userScore: state.userScore,
+        score: state.score,
         tier: state.tier,
+        breakdown: state.breakdown,
         lastFetch: state.lastFetch,
       }),
     }
   )
 );
-

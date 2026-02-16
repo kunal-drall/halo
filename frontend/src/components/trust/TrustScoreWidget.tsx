@@ -1,87 +1,106 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Badge } from '@/components/ui/badge';
-import { TrustTier } from '@/types/circles';
-import { Shield, Star } from 'lucide-react';
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import type { TrustTier } from "@/types";
 
 interface TrustScoreWidgetProps {
-  score?: number;
-  tier?: TrustTier;
-  publicKey?: any;
+  score: number;
+  tier: TrustTier;
 }
 
-export function TrustScoreWidget({ score = 650, tier = TrustTier.Silver }: TrustScoreWidgetProps) {
-  const getTierColor = (tier: TrustTier) => {
-    switch (tier) {
-      case TrustTier.Platinum: return 'bg-purple-100 text-purple-800 border-purple-200';
-      case TrustTier.Gold: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case TrustTier.Silver: return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+const tierStyles: Record<
+  TrustTier,
+  { color: string; glow: string; stroke: string; badge: "newcomer" | "silver" | "gold" | "platinum"; label: string }
+> = {
+  newcomer: {
+    color: "text-red-400",
+    glow: "drop-shadow-[0_0_12px_rgba(239,68,68,0.4)]",
+    stroke: "stroke-red-400",
+    badge: "newcomer",
+    label: "Newcomer",
+  },
+  silver: {
+    color: "text-amber-400",
+    glow: "drop-shadow-[0_0_12px_rgba(245,158,11,0.4)]",
+    stroke: "stroke-amber-400",
+    badge: "silver",
+    label: "Silver",
+  },
+  gold: {
+    color: "text-green-400",
+    glow: "drop-shadow-[0_0_12px_rgba(34,197,94,0.4)]",
+    stroke: "stroke-green-400",
+    badge: "gold",
+    label: "Gold",
+  },
+  platinum: {
+    color: "text-emerald-400",
+    glow: "drop-shadow-[0_0_12px_rgba(16,185,129,0.4)]",
+    stroke: "stroke-emerald-400",
+    badge: "platinum",
+    label: "Platinum",
+  },
+};
 
-  const getTierName = (tier: TrustTier) => {
-    switch (tier) {
-      case TrustTier.Platinum: return 'Platinum';
-      case TrustTier.Gold: return 'Gold';
-      case TrustTier.Silver: return 'Silver';
-      default: return 'Newcomer';
-    }
-  };
+export default function TrustScoreWidget({ score, tier }: TrustScoreWidgetProps) {
+  const style = tierStyles[tier] || tierStyles.newcomer;
 
-  const getTierIcon = (tier: TrustTier) => {
-    switch (tier) {
-      case TrustTier.Platinum: return '💎';
-      case TrustTier.Gold: return '🥇';
-      case TrustTier.Silver: return '🥈';
-      default: return '🆕';
-    }
-  };
-
-  const getProgressToNextTier = (score: number, tier: TrustTier) => {
-    switch (tier) {
-      case TrustTier.Newcomer:
-        return { current: score, target: 250, nextTier: 'Silver' };
-      case TrustTier.Silver:
-        return { current: score - 250, target: 250, nextTier: 'Gold' };
-      case TrustTier.Gold:
-        return { current: score - 500, target: 250, nextTier: 'Platinum' };
-      default:
-        return { current: 100, target: 100, nextTier: 'Max' };
-    }
-  };
-
-  const progress = getProgressToNextTier(score, tier);
-  const progressPercentage = Math.min(100, (progress.current / progress.target) * 100);
+  // SVG circle calculations
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const progress = Math.min(score / 1000, 1);
+  const strokeDashoffset = circumference * (1 - progress);
 
   return (
-    <div className="flex items-center space-x-2">
-      <div className="flex items-center space-x-1">
-        <Shield className="h-4 w-4 text-gray-600" />
-        <span className="text-sm font-medium text-gray-700">{score}</span>
-      </div>
-      
-      <Badge className={`${getTierColor(tier)} border`}>
-        <div className="flex items-center space-x-1">
-          <span className="text-xs">{getTierIcon(tier)}</span>
-          <span className="text-xs font-medium">{getTierName(tier)}</span>
-        </div>
-      </Badge>
+    <div className="flex flex-col items-center gap-3">
+      {/* Ring visualization */}
+      <div className={cn("relative", style.glow)}>
+        <svg
+          width="140"
+          height="140"
+          viewBox="0 0 140 140"
+          className="transform -rotate-90"
+        >
+          {/* Background ring */}
+          <circle
+            cx="70"
+            cy="70"
+            r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="8"
+            className="text-white/10"
+          />
+          {/* Progress ring */}
+          <circle
+            cx="70"
+            cy="70"
+            r={radius}
+            fill="none"
+            strokeWidth="8"
+            strokeLinecap="round"
+            className={cn(style.stroke, "transition-all duration-1000 ease-out")}
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+          />
+        </svg>
 
-      {tier < TrustTier.Platinum && (
-        <div className="flex items-center space-x-1">
-          <div className="w-8 h-1 bg-gray-200 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-blue-500 transition-all duration-300"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-          <span className="text-xs text-gray-500">
-            {Math.round(progressPercentage)}%
+        {/* Score number in center */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className={cn("text-3xl font-bold", style.color)}>
+            {score}
+          </span>
+          <span className="text-[10px] text-white/40 uppercase tracking-widest">
+            Score
           </span>
         </div>
-      )}
+      </div>
+
+      {/* Tier badge */}
+      <Badge variant={style.badge} className="text-xs px-3">
+        {style.label}
+      </Badge>
     </div>
   );
 }

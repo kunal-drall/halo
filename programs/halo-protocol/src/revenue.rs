@@ -5,7 +5,7 @@ use crate::errors::HaloError;
 use crate::state::{Treasury, RevenueParams, RevenueReport};
 
 /// Initialize the global treasury account
-pub fn initialize_treasury(ctx: Context<InitializeTreasury>) -> Result<()> {
+pub(crate) fn initialize_treasury(ctx: Context<InitializeTreasury>) -> Result<()> {
     let treasury = &mut ctx.accounts.treasury;
     let clock = Clock::get()?;
 
@@ -22,7 +22,7 @@ pub fn initialize_treasury(ctx: Context<InitializeTreasury>) -> Result<()> {
 }
 
 /// Initialize revenue parameters with default values
-pub fn initialize_revenue_params(ctx: Context<InitializeRevenueParams>) -> Result<()> {
+pub(crate) fn initialize_revenue_params(ctx: Context<InitializeRevenueParams>) -> Result<()> {
     let params = &mut ctx.accounts.revenue_params;
     let clock = Clock::get()?;
     
@@ -41,7 +41,7 @@ pub fn initialize_revenue_params(ctx: Context<InitializeRevenueParams>) -> Resul
 }
 
 /// Update revenue parameters (governance only)
-pub fn update_revenue_params(
+pub(crate) fn update_revenue_params(
     ctx: Context<UpdateRevenueParams>,
     distribution_fee_rate: Option<u16>,
     yield_fee_rate: Option<u16>,
@@ -79,7 +79,7 @@ pub fn update_revenue_params(
 }
 
 /// Collect management fees from all active stakes
-pub fn collect_management_fees(ctx: Context<CollectManagementFees>) -> Result<()> {
+pub(crate) fn collect_management_fees(ctx: Context<CollectManagementFees>) -> Result<()> {
     let treasury = &mut ctx.accounts.treasury;
     let params = &ctx.accounts.revenue_params;
     let clock = Clock::get()?;
@@ -132,7 +132,7 @@ pub fn collect_management_fees(ctx: Context<CollectManagementFees>) -> Result<()
 }
 
 /// Distribute yield with fee collection (for Solend integration)
-pub fn distribute_yield(ctx: Context<DistributeYield>, yield_amount: u64) -> Result<()> {
+pub(crate) fn distribute_yield(ctx: Context<DistributeYield>, yield_amount: u64) -> Result<()> {
     let treasury = &mut ctx.accounts.treasury;
     let params = &ctx.accounts.revenue_params;
     
@@ -171,7 +171,7 @@ pub fn distribute_yield(ctx: Context<DistributeYield>, yield_amount: u64) -> Res
          yield_amount, yield_fee, net_yield_amount);
     Ok(())
 }
-pub fn create_revenue_report(
+pub(crate) fn create_revenue_report(
     ctx: Context<CreateRevenueReport>,
     period_start: i64,
     period_end: i64,
@@ -204,7 +204,7 @@ pub fn create_revenue_report(
 }
 
 /// Internal helper function to collect distribution fees
-pub fn collect_distribution_fee<'info>(
+pub(crate) fn collect_distribution_fee<'info>(
     distribution_amount: u64,
     params: &RevenueParams,
     treasury: &mut Treasury,
@@ -244,7 +244,7 @@ pub fn collect_distribution_fee<'info>(
 }
 
 /// Internal helper function to collect yield fees
-pub fn collect_yield_fee<'info>(
+pub(crate) fn collect_yield_fee<'info>(
     yield_amount: u64,
     params: &RevenueParams,
     treasury: &mut Treasury,

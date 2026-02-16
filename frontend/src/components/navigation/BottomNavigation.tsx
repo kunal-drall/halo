@@ -1,93 +1,100 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
-import { 
-  Home, 
-  Search, 
-  Plus, 
-  Wallet, 
-  User 
-} from 'lucide-react';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Home, Users, PlusCircle, Shield, User } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-interface NavItemProps {
+import type { LucideIcon } from "lucide-react";
+
+type NavItem = {
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
   label: string;
-  isActive: boolean;
-}
+  icon: LucideIcon;
+  isCreate?: boolean;
+};
 
-function NavItem({ href, icon: Icon, label, isActive }: NavItemProps) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'flex flex-col items-center justify-center py-2 px-3 min-h-[44px] min-w-[44px] rounded-lg transition-colors',
-        isActive 
-          ? 'text-blue-600 bg-blue-50' 
-          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-      )}
-    >
-      <Icon className={cn('h-5 w-5 mb-1', isActive && 'text-blue-600')} />
-      <span className={cn('text-xs font-medium', isActive && 'text-blue-600')}>
-        {label}
-      </span>
-    </Link>
-  );
-}
+const navItems: NavItem[] = [
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/circles", label: "Circles", icon: Users },
+  { href: "/circles/create", label: "Create", icon: PlusCircle, isCreate: true },
+  { href: "/trust-score", label: "Trust", icon: Shield },
+  { href: "/profile", label: "Profile", icon: User },
+];
 
-export function BottomNavigation() {
+export default function BottomNavigation() {
   const pathname = usePathname();
 
-  const navItems = [
-    {
-      href: '/',
-      icon: Home,
-      label: 'Home',
-    },
-    {
-      href: '/discover',
-      icon: Search,
-      label: 'Discover',
-    },
-    {
-      href: '/create',
-      icon: Plus,
-      label: 'Create',
-    },
-    {
-      href: '/wallet',
-      icon: Wallet,
-      label: 'Wallet',
-    },
-    {
-      href: '/profile',
-      icon: User,
-      label: 'Profile',
-    },
-  ];
-
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 safe-area-pb">
-      <div className="flex justify-around items-center max-w-md mx-auto">
+    <nav
+      className={cn(
+        "fixed bottom-0 left-0 right-0 z-50 md:hidden",
+        "border-t border-white/10",
+        "bg-[#0B0F1A]/80 backdrop-blur-xl",
+        "pb-safe"
+      )}
+    >
+      <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || 
-            (item.href !== '/' && pathname.startsWith(item.href));
-          
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+          const Icon = item.icon;
+
+          if (item.isCreate) {
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex flex-col items-center justify-center gap-0.5 -mt-4"
+              >
+                <div
+                  className={cn(
+                    "flex items-center justify-center w-12 h-12 rounded-full",
+                    "bg-white text-[#0B0F1A]",
+                    "hover:bg-neutral-200 transition-colors"
+                  )}
+                >
+                  <Icon className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] font-medium text-white">
+                  {item.label}
+                </span>
+              </Link>
+            );
+          }
+
           return (
-            <NavItem
+            <Link
               key={item.href}
               href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={isActive}
-            />
+              className={cn(
+                "flex flex-col items-center justify-center gap-0.5 w-16 py-1",
+                "transition-colors duration-200",
+                isActive ? "text-white" : "text-neutral-500 hover:text-neutral-300"
+              )}
+            >
+              <Icon
+                className={cn(
+                  "w-5 h-5 transition-all",
+                  isActive && "scale-110"
+                )}
+              />
+              <span
+                className={cn(
+                  "text-[10px] font-medium",
+                  isActive && "text-white"
+                )}
+              >
+                {item.label}
+              </span>
+              {isActive && (
+                <div className="absolute bottom-0 w-8 h-0.5 rounded-full bg-white" />
+              )}
+            </Link>
           );
         })}
       </div>
     </nav>
   );
 }
-

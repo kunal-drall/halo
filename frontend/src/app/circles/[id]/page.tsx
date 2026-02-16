@@ -1,467 +1,739 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletWrapper } from '@/components/WalletWrapper';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { 
+import { useEffect, useState, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
   ArrowLeft,
-  Users, 
-  DollarSign, 
-  Clock, 
-  Shield,
+  Users,
+  DollarSign,
   TrendingUp,
-  Star,
-  CheckCircle,
-  AlertCircle,
-  User,
+  Clock,
+  Shield,
+  CheckCircle2,
+  XCircle,
+  Loader2,
   Calendar,
-  Activity,
-  Settings
-} from 'lucide-react';
-import { Circle, Member } from '@/types/circles';
-import { circleService } from '@/services/circle-service';
-import { useToast } from '@/components/ui/toast';
-import { useParams } from 'next/navigation';
+  Wallet,
+  AlertCircle,
+  Copy,
+  Check,
+  ExternalLink,
+} from "lucide-react";
+import ContributionTracker from "@/components/circles/ContributionTracker";
+import PayoutSchedule from "@/components/circles/PayoutSchedule";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useTransactionBuilder } from "@/hooks/useTransactionBuilder";
+import { useCircleStore } from "@/stores/circleStore";
+import {
+  fetchCircleDetail,
+  joinCircleTx,
+  contributeTx,
+  claimPayoutTx,
+} from "@/services/circle-service";
+import {
+  cn,
+  shortenAddress,
+  formatDate,
+  getTrustTierColor,
+} from "@/lib/utils";
+import { TRUST_TIERS, getTrustTier } from "@/lib/constants";
+import type { CircleWithMembers, CircleMember, Contribution, Payout } from "@/types";
 
-interface CircleDetailProps {
-  params: {
-    id: string;
-  };
+const STATUS_CONFIG: Record<
+  string,
+  { label: string; variant: "default" | "success" | "secondary" | "destructive" | "outline" }
+> = {
+  forming: { label: "Forming", variant: "secondary" },
+  active: { label: "Active", variant: "success" },
+  distributing: { label: "Distributing", variant: "outline" },
+  completed: { label: "Completed", variant: "default" },
+  dissolved: { label: "Dissolved", variant: "destructive" },
+};
+
+const PAYOUT_LABELS: Record<string, string> = {
+  fixed_rotation: "Fixed Rotation",
+  random: "Random",
+  auction: "Auction",
+};
+
+function SkeletonDetail() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="h-8 bg-white/10 rounded w-1/3" />
+      <div className="h-4 bg-white/10 rounded w-1/2" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-24 bg-white/5 rounded-lg border border-white/10" />
+        ))}
+      </div>
+      <div className="h-64 bg-white/5 rounded-lg border border-white/10" />
+    </div>
+  );
 }
 
-export default function CircleDetailPage({ params }: CircleDetailProps) {
-  const { connected, publicKey } = useWallet();
-  const { addToast } = useToast();
-  const [circle, setCircle] = useState<Circle | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
+export default function CircleDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const circleId = params.id as string;
+  const { publicKey, connected } = useWallet();
+  const { buildAndSend, loading: txLoading, error: txError, setError: setTxError } = useTransactionBuilder();
+  const { currentCircle, setCurrentCircle } = useCircleStore();
+
   const [loading, setLoading] = useState(true);
-  const [isContributing, setIsContributing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [circle, setCircle] = useState<CircleWithMembers | null>(null);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [showJoinDialog, setShowJoinDialog] = useState(false);
+  const [showContributeDialog, setShowContributeDialog] = useState(false);
+  const [stakeAmount, setStakeAmount] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
-  // Load circle data
+  const loadCircle = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchCircleDetail(circleId);
+      setCircle(data);
+      setCurrentCircle(data);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load circle";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [circleId, setCurrentCircle]);
+
   useEffect(() => {
-    const loadCircleData = async () => {
-      try {
-        setLoading(true);
-        
-        // Load circle details
-        const circleData = await circleService.getCircle(params.id);
-        setCircle(circleData);
+    loadCircle();
+  }, [loadCircle]);
 
-        // Mock members data
-        setMembers([
-          {
-            authority: 'Member1...',
-            circle: params.id,
-            stakeAmount: 30,
-            contributionHistory: [200, 200, 200],
-            payoutClaimed: false,
-            payoutPosition: 1,
-            insuranceStaked: 30,
-            trustScore: 750,
-            trustTier: 3,
-            contributionRecords: [],
-            status: 'Active',
-            hasReceivedPot: false,
-            penalties: 0,
-            joinedAt: Date.now() - 86400000 * 30,
-            contributionsMissed: 0
-          },
-          {
-            authority: 'Member2...',
-            circle: params.id,
-            stakeAmount: 25,
-            contributionHistory: [200, 200],
-            payoutClaimed: false,
-            payoutPosition: 2,
-            insuranceStaked: 25,
-            trustScore: 650,
-            trustTier: 1,
-            contributionRecords: [],
-            status: 'Active',
-            hasReceivedPot: false,
-            penalties: 0,
-            joinedAt: Date.now() - 86400000 * 20,
-            contributionsMissed: 0
-          }
-        ]);
-      } catch (error) {
-        console.error('Error loading circle data:', error);
-        addToast({
-          type: 'error',
-          title: 'Error',
-          description: 'Failed to load circle details',
-          duration: 5000
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+  const walletAddress = publicKey?.toBase58();
+  const isMember = circle?.members?.some(
+    (m) => m.user?.wallet_address === walletAddress && m.status === "active"
+  );
+  const isCreator = circle?.creator?.wallet_address === walletAddress;
+  const canJoin =
+    circle?.status === "forming" && !isMember && connected;
+  const canContribute =
+    circle?.status === "active" && isMember;
+  const canClaim =
+    circle?.status === "distributing" && isMember;
 
-    loadCircleData();
-  }, [params.id, addToast]);
+  const handleJoin = async () => {
+    if (!publicKey || !circle) return;
+    setActionLoading(true);
+    try {
+      const tier = getTrustTier(0);
+      const requiredStake = circle.contribution_amount * tier.stakeMultiplier;
+      await buildAndSend(`/api/circles/${circleId}/join`, {
+        stake_amount: parseFloat(stakeAmount) || requiredStake,
+      });
+      setShowJoinDialog(false);
+      await loadCircle();
+    } catch {
+      // Error handled by useTransactionBuilder
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleContribute = async () => {
     if (!publicKey || !circle) return;
-
-    setIsContributing(true);
+    setActionLoading(true);
     try {
-      const signature = await circleService.contribute(
-        { circleId: circle.id, amount: circle.contributionAmount },
-        publicKey
-      );
-
-      addToast({
-        type: 'success',
-        title: 'Contribution Successful',
-        description: `Contributed $${circle.contributionAmount} to ${circle.id.slice(0, 8)}`,
-        duration: 5000
+      await buildAndSend(`/api/circles/${circleId}/contribute`, {
+        amount: circle.contribution_amount,
       });
-
-      // Refresh circle data
-      window.location.reload();
-    } catch (error) {
-      console.error('Error making contribution:', error);
-      addToast({
-        type: 'error',
-        title: 'Contribution Failed',
-        description: error instanceof Error ? error.message : 'An error occurred',
-        duration: 7000
-      });
+      setShowContributeDialog(false);
+      await loadCircle();
+    } catch {
+      // Error handled by useTransactionBuilder
     } finally {
-      setIsContributing(false);
+      setActionLoading(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Forming': return 'bg-blue-100 text-blue-800';
-      case 'Active': return 'bg-green-100 text-green-800';
-      case 'Completed': return 'bg-purple-100 text-purple-800';
-      case 'Terminated': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const handleClaimPayout = async () => {
+    if (!publicKey || !circle) return;
+    setActionLoading(true);
+    try {
+      await buildAndSend(`/api/circles/${circleId}/claim-payout`, {});
+      await loadCircle();
+    } catch {
+      // Error handled by useTransactionBuilder
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const getTrustTierName = (tier: number) => {
-    switch (tier) {
-      case 3: return 'Platinum';
-      case 2: return 'Gold';
-      case 1: return 'Silver';
-      default: return 'Newcomer';
-    }
+  const copyAddress = (address: string) => {
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const getTrustTierColor = (tier: number) => {
-    switch (tier) {
-      case 3: return 'text-purple-600';
-      case 2: return 'text-yellow-600';
-      case 1: return 'text-blue-600';
-      default: return 'text-gray-600';
-    }
+  const copyInviteLink = () => {
+    if (!circle?.invite_code) return;
+    const url = `${window.location.origin}/join/${circle.invite_code}`;
+    navigator.clipboard.writeText(url);
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 2000);
   };
-
-  if (!connected) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center">
-            <Users className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
-            <p className="text-gray-600 mb-6">
-              Connect your Solana wallet to view circle details
-            </p>
-            <WalletWrapper />
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-md mx-auto space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6 pb-24">
+        <SkeletonDetail />
+      </main>
     );
   }
 
-  if (!circle) {
+  if (error || !circle) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center">
-            <AlertCircle className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h2 className="text-2xl font-bold mb-2">Circle Not Found</h2>
-            <p className="text-gray-600 mb-6">
-              The circle you're looking for doesn't exist or has been removed.
-            </p>
-            <Button onClick={() => window.history.back()}>
-              Go Back
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <main className="flex-1 flex items-center justify-center px-4">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">
+            Circle Not Found
+          </h2>
+          <p className="text-white/50 mb-6">
+            {error || "This circle does not exist or has been removed."}
+          </p>
+          <Button variant="outline" onClick={() => router.push("/circles")}>
+            Back to Circles
+          </Button>
+        </div>
+      </main>
     );
   }
 
-  const isUserMember = publicKey && circle.members.includes(publicKey.toBase58());
-  const isUserTurn = circle.nextPayoutRecipient === publicKey?.toBase58();
-  const progressPercentage = (circle.currentRound / circle.durationMonths) * 100;
+  const statusConfig = STATUS_CONFIG[circle.status] || STATUS_CONFIG.forming;
+  const progressPercent =
+    circle.duration_months > 0
+      ? (circle.current_month / circle.duration_months) * 100
+      : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="max-w-md mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+    <>
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6 pb-24">
+        {/* Back button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2 mb-4 text-white/50"
+          onClick={() => router.back()}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </Button>
+
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <div className="flex items-start justify-between flex-wrap gap-3">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">
+                  {circle.name || "Untitled Circle"}
+                </h1>
+                <Badge variant={statusConfig.variant}>
+                  {statusConfig.label}
+                </Badge>
+              </div>
+              <p className="text-white/50 text-sm flex items-center gap-4">
+                <span className="flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5" />
+                  {circle.current_members}/{circle.max_members} members
+                </span>
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Month {circle.current_month}/{circle.duration_months}
+                </span>
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              {canJoin && (
+                <Button onClick={() => setShowJoinDialog(true)}>
+                  Join Circle
+                </Button>
+              )}
+              {canContribute && (
+                <Button onClick={() => setShowContributeDialog(true)}>
+                  Contribute
+                </Button>
+              )}
+              {canClaim && (
+                <Button
+                  variant="default"
+                  onClick={handleClaimPayout}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
+                  Claim Payout
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {circle.description && (
+            <p className="text-white/40 text-sm mt-2 max-w-2xl">
+              {circle.description}
+            </p>
+          )}
+
+          {circle.invite_code && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-white/30 text-xs">Invite link:</span>
+              <button
+                onClick={copyInviteLink}
+                className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60 transition-colors bg-white/5 border border-white/10 rounded px-2 py-1"
+              >
+                {inviteCopied ? (
+                  <>
+                    <Check className="w-3 h-3" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    Copy Link
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <StatCard
+            icon={DollarSign}
+            label="Contribution"
+            value={`$${circle.contribution_amount.toLocaleString()}`}
+            sub="USDC / month"
+          />
+          <StatCard
+            icon={Wallet}
+            label="Escrow Balance"
+            value={`$${circle.total_pot.toLocaleString()}`}
+            sub="USDC"
+          />
+          <StatCard
+            icon={TrendingUp}
+            label="Yield Earned"
+            value={`$${circle.total_yield_earned.toFixed(2)}`}
+            sub="USDC"
+            highlight
+          />
+          <StatCard
+            icon={Shield}
+            label="Min Trust"
+            value={circle.min_trust_tier.charAt(0).toUpperCase() + circle.min_trust_tier.slice(1)}
+            sub={`Penalty: ${circle.penalty_rate}%`}
+          />
+        </div>
+
+        {/* Progress */}
+        <div className="mb-6">
+          <div className="flex justify-between text-xs text-white/40 mb-1.5">
+            <span>Circle Progress</span>
+            <span>{Math.round(progressPercent)}%</span>
+          </div>
+          <Progress value={progressPercent} />
+        </div>
+
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="w-full sm:w-auto mb-4">
+            <TabsTrigger value="overview" className="flex-1 sm:flex-initial">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="members" className="flex-1 sm:flex-initial">
+              Members
+            </TabsTrigger>
+            <TabsTrigger value="contributions" className="flex-1 sm:flex-initial">
+              Contributions
+            </TabsTrigger>
+            <TabsTrigger value="payouts" className="flex-1 sm:flex-initial">
+              Payouts
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview">
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card className="border-white/5 bg-white/[0.02]">
+                <CardHeader>
+                  <CardTitle className="text-base">Circle Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <DetailRow label="Payout Method" value={PAYOUT_LABELS[circle.payout_method] || circle.payout_method} />
+                  <DetailRow label="Duration" value={`${circle.duration_months} months`} />
+                  <DetailRow label="Max Members" value={circle.max_members.toString()} />
+                  <DetailRow label="Penalty Rate" value={`${circle.penalty_rate}%`} />
+                  <DetailRow label="Visibility" value={circle.is_public ? "Public" : "Private"} />
+                  <DetailRow label="Created" value={formatDate(circle.created_at)} />
+                  {circle.on_chain_pubkey && (
+                    <div className="flex items-center justify-between text-sm pt-2 border-t border-white/5">
+                      <span className="text-white/40">On-chain</span>
+                      <button
+                        onClick={() => copyAddress(circle.on_chain_pubkey)}
+                        className="flex items-center gap-1 text-white/60 hover:text-white transition-colors"
+                      >
+                        {shortenAddress(circle.on_chain_pubkey)}
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-white/5 bg-white/[0.02]">
+                <CardHeader>
+                  <CardTitle className="text-base">Contribution Tracker</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ContributionTracker
+                    contributions={[]}
+                    currentMonth={circle.current_month}
+                    totalMonths={circle.duration_months}
+                    memberCount={circle.current_members}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Members Tab */}
+          <TabsContent value="members">
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-0">
+                {circle.members && circle.members.length > 0 ? (
+                  <div className="divide-y divide-white/5">
+                    {circle.members.map((member, index) => (
+                      <MemberRow
+                        key={member.id}
+                        member={member}
+                        index={index}
+                        isCurrentUser={member.user?.wallet_address === walletAddress}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Users className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                    <p className="text-white/40">No members yet.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Contributions Tab */}
+          <TabsContent value="contributions">
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left p-4 text-white/40 font-medium">Month</th>
+                        <th className="text-left p-4 text-white/40 font-medium">Member</th>
+                        <th className="text-left p-4 text-white/40 font-medium">Amount</th>
+                        <th className="text-left p-4 text-white/40 font-medium">Status</th>
+                        <th className="text-left p-4 text-white/40 font-medium">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {circle.current_month > 0 ? (
+                        Array.from({ length: circle.current_month }, (_, month) =>
+                          (circle.members || []).map((member) => (
+                            <tr
+                              key={`${month}-${member.id}`}
+                              className="border-b border-white/5 hover:bg-white/[0.02]"
+                            >
+                              <td className="p-4 text-white/60">
+                                Month {month + 1}
+                              </td>
+                              <td className="p-4 text-white">
+                                {member.user
+                                  ? shortenAddress(member.user.wallet_address)
+                                  : "Unknown"}
+                              </td>
+                              <td className="p-4 text-white">
+                                ${circle.contribution_amount.toLocaleString()}
+                              </td>
+                              <td className="p-4">
+                                <Badge variant="success" className="text-xs">
+                                  Paid
+                                </Badge>
+                              </td>
+                              <td className="p-4 text-white/40">
+                                {formatDate(circle.created_at)}
+                              </td>
+                            </tr>
+                          ))
+                        )
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-white/40">
+                            No contributions yet. The circle has not started.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Payouts Tab */}
+          <TabsContent value="payouts">
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="pt-6">
+                <PayoutSchedule
+                  members={circle.members || []}
+                  payouts={[]}
+                  currentMonth={circle.current_month}
+                  payoutMethod={circle.payout_method}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      {/* Join Dialog */}
+      <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Join Circle</DialogTitle>
+            <DialogDescription>
+              Join &ldquo;{circle.name}&rdquo; by depositing your stake. Your stake
+              amount depends on your trust tier.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="text-sm text-white/60 mb-1.5 block">
+                Stake Amount (USDC)
+              </label>
+              <Input
+                type="number"
+                placeholder={`${circle.contribution_amount * 2}`}
+                value={stakeAmount}
+                onChange={(e) => setStakeAmount(e.target.value)}
+              />
+              <p className="text-white/30 text-xs mt-1">
+                Newcomers stake 2x contribution. Higher trust tiers require less.
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-white/5 border border-white/10 text-sm">
+              <div className="flex justify-between text-white/50 mb-1">
+                <span>Monthly Contribution</span>
+                <span>${circle.contribution_amount}</span>
+              </div>
+              <div className="flex justify-between text-white/50">
+                <span>Duration</span>
+                <span>{circle.duration_months} months</span>
+              </div>
+            </div>
+            {txError && (
+              <p className="text-red-400 text-sm">{txError}</p>
+            )}
+            <div className="flex gap-3 justify-end">
               <Button
                 variant="ghost"
-                size="sm"
-                onClick={() => window.history.back()}
+                onClick={() => setShowJoinDialog(false)}
               >
-                <ArrowLeft className="h-4 w-4" />
+                Cancel
               </Button>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  Circle {circle.id.slice(0, 8)}
-                </h1>
-                <p className="text-sm text-gray-500">
-                  {circle.currentMembers}/{circle.maxMembers} members
-                </p>
-              </div>
+              <Button
+                onClick={handleJoin}
+                disabled={actionLoading || txLoading}
+              >
+                {actionLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
+                Confirm Join
+              </Button>
             </div>
-            <WalletWrapper />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contribute Dialog */}
+      <Dialog open={showContributeDialog} onOpenChange={setShowContributeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Make Contribution</DialogTitle>
+            <DialogDescription>
+              Contribute ${circle.contribution_amount} USDC for month{" "}
+              {circle.current_month + 1}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="p-4 rounded-lg bg-white/5 border border-white/10 text-center">
+              <p className="text-xs text-white/60 mb-1">Amount Due</p>
+              <p className="text-2xl font-bold text-white">
+                ${circle.contribution_amount.toLocaleString()}{" "}
+                <span className="text-sm font-normal text-white/40">USDC</span>
+              </p>
+            </div>
+            {txError && (
+              <p className="text-red-400 text-sm">{txError}</p>
+            )}
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => setShowContributeDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleContribute}
+                disabled={actionLoading || txLoading}
+              >
+                {actionLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
+                Confirm Contribution
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+    </>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  highlight,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  sub: string;
+  highlight?: boolean;
+}) {
+  return (
+    <Card className="border-white/5 bg-white/[0.02]">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 text-white/40 text-xs mb-2">
+          <Icon className="w-3.5 h-3.5" />
+          {label}
+        </div>
+        <p
+          className={cn(
+            "text-lg font-bold",
+            highlight ? "text-green-400" : "text-white"
+          )}
+        >
+          {value}
+        </p>
+        <p className="text-white/30 text-xs">{sub}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-white/40">{label}</span>
+      <span className="text-white">{value}</span>
+    </div>
+  );
+}
+
+function MemberRow({
+  member,
+  index,
+  isCurrentUser,
+}: {
+  member: CircleMember;
+  index: number;
+  isCurrentUser: boolean;
+}) {
+  const address = member.user?.wallet_address || "Unknown";
+  const tierColor = getTrustTierColor(member.user?.trust_tier || "newcomer");
+
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors",
+        isCurrentUser && "bg-white/[0.02]"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-medium text-white/60">
+          {index + 1}
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-white font-medium">
+              {member.user?.display_name || shortenAddress(address)}
+            </span>
+            {isCurrentUser && (
+              <Badge variant="default" className="text-[10px]">
+                You
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className={cn("text-xs font-medium capitalize", tierColor)}>
+              {member.user?.trust_tier || "newcomer"}
+            </span>
+            <span className="text-white/30 text-xs">
+              Score: {member.trust_score_at_join}
+            </span>
           </div>
         </div>
-      </header>
+      </div>
 
-      {/* Main Content */}
-      <main className="max-w-md mx-auto p-4 space-y-6">
-        {/* Circle Status Card */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
-                <Users className="h-5 w-5 text-blue-500" />
-                <span className="font-semibold">Circle Status</span>
-              </div>
-              <Badge className={getStatusColor(circle.status)}>
-                {circle.status}
-              </Badge>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
-                <span>Round {circle.currentRound} of {circle.durationMonths}</span>
-                <span>{Math.round(progressPercentage)}% complete</span>
-              </div>
-              <Progress value={progressPercentage} className="h-2" />
-            </div>
-
-            {/* Key Metrics */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  ${circle.contributionAmount}
-                </div>
-                <div className="text-sm text-gray-500">Monthly Contribution</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  ${circle.totalPot.toFixed(0)}
-                </div>
-                <div className="text-sm text-gray-500">Total Pot</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Special Status Indicators */}
-        {isUserTurn && (
-          <Card className="border-l-4 border-l-green-500 bg-green-50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Star className="h-5 w-5 text-green-600" />
-                <span className="font-semibold text-green-800">
-                  It's your turn to receive payout!
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="flex items-center gap-3">
+        {member.payout_position !== null && (
+          <span className="text-xs text-white/40">
+            Payout #{member.payout_position + 1}
+          </span>
         )}
-
-        {/* Members List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <Users className="h-5 w-5 mr-2" />
-              Members ({circle.currentMembers})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {members.map((member, index) => (
-                <div key={member.authority} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <User className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {member.authority.slice(0, 8)}...{member.authority.slice(-8)}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Position #{member.payoutPosition}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`text-sm font-semibold ${getTrustTierColor(member.trustTier)}`}>
-                      {getTrustTierName(member.trustTier)}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {member.trustScore} pts
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Circle Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Circle Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <div className="text-gray-500">Payout Method</div>
-                <div className="font-semibold">{circle.payoutMethod}</div>
-              </div>
-              <div>
-                <div className="text-gray-500">Min Trust Tier</div>
-                <div className="font-semibold">{getTrustTierName(circle.minTrustTier)}</div>
-              </div>
-              <div>
-                <div className="text-gray-500">Penalty Rate</div>
-                <div className="font-semibold">{circle.penaltyRate}%</div>
-              </div>
-              <div>
-                <div className="text-gray-500">Yield Earned</div>
-                <div className="font-semibold text-green-600">
-                  ${circle.totalYieldEarned.toFixed(2)}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Action Buttons */}
-        {isUserMember ? (
-          <div className="space-y-3">
-            {isUserTurn ? (
-              <Button 
-                className="w-full h-12 text-lg font-semibold bg-green-600 hover:bg-green-700"
-                onClick={() => {
-                  // Handle payout claim
-                  addToast({
-                    type: 'info',
-                    title: 'Claim Payout',
-                    description: 'Payout claiming functionality will be implemented',
-                    duration: 5000
-                  });
-                }}
-              >
-                <CheckCircle className="h-5 w-5 mr-2" />
-                Claim Payout
-              </Button>
-            ) : (
-              <Button 
-                onClick={handleContribute}
-                disabled={isContributing}
-                className="w-full h-12 text-lg font-semibold"
-              >
-                {isContributing ? 'Processing...' : `Contribute $${circle.contributionAmount}`}
-              </Button>
-            )}
-            
-            <Button variant="outline" className="w-full">
-              <Activity className="h-4 w-4 mr-2" />
-              View Activity
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <Button className="w-full h-12 text-lg font-semibold">
-              <Users className="h-5 w-5 mr-2" />
-              Join Circle
-            </Button>
-            <Button variant="outline" className="w-full">
-              <Settings className="h-4 w-4 mr-2" />
-              Circle Settings
-            </Button>
-          </div>
-        )}
-
-        {/* Timeline */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <Calendar className="h-5 w-5 mr-2" />
-              Timeline
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {Array.from({ length: circle.durationMonths }, (_, i) => (
-                <div key={i} className="flex items-center space-x-3">
-                  <div className={`
-                    w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold
-                    ${i < circle.currentRound 
-                      ? 'bg-green-500 text-white' 
-                      : i === circle.currentRound 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-gray-200 text-gray-500'
-                    }
-                  `}>
-                    {i + 1}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium">
-                      Round {i + 1}
-                      {i === circle.currentRound && ' (Current)'}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {i < circle.currentRound ? 'Completed' : 
-                       i === circle.currentRound ? 'In Progress' : 'Upcoming'}
-                    </div>
-                  </div>
-                  {i < circle.currentRound && (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </main>
+        <Badge
+          variant={member.status === "active" ? "success" : "destructive"}
+          className="text-xs capitalize"
+        >
+          {member.status}
+        </Badge>
+      </div>
     </div>
   );
 }

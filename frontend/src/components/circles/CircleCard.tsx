@@ -1,171 +1,125 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Circle } from '@/types/circles';
-import { 
-  Users, 
-  Clock, 
-  DollarSign, 
-  TrendingUp,
-  ArrowRight,
-  Shield,
-  Star
-} from 'lucide-react';
+import Link from "next/link";
+import { Users, Clock, ArrowRight } from "lucide-react";
+import { cn, formatTokenAmount } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import type { Circle, CircleStatus, TrustTier } from "@/types";
 
 interface CircleCardProps {
   circle: Circle;
 }
 
-export function CircleCard({ circle }: CircleCardProps) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Forming': return 'bg-blue-100 text-blue-800';
-      case 'Active': return 'bg-green-100 text-green-800';
-      case 'Completed': return 'bg-purple-100 text-purple-800';
-      case 'Terminated': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+const statusConfig: Record<CircleStatus, { label: string; variant: "success" | "default" | "secondary" | "outline" | "destructive" }> = {
+  forming: { label: "Forming", variant: "secondary" },
+  active: { label: "Active", variant: "success" },
+  distributing: { label: "Distributing", variant: "outline" },
+  completed: { label: "Completed", variant: "default" },
+  dissolved: { label: "Dissolved", variant: "destructive" },
+};
 
-  const getTrustTierColor = (tier: number) => {
-    if (tier >= 3) return 'text-purple-600';
-    if (tier >= 2) return 'text-yellow-600';
-    if (tier >= 1) return 'text-blue-600';
-    return 'text-gray-600';
-  };
+const tierConfig: Record<TrustTier, { label: string; variant: "newcomer" | "silver" | "gold" | "platinum" }> = {
+  newcomer: { label: "Newcomer+", variant: "newcomer" },
+  silver: { label: "Silver+", variant: "silver" },
+  gold: { label: "Gold+", variant: "gold" },
+  platinum: { label: "Platinum", variant: "platinum" },
+};
 
-  const getTrustTierName = (tier: number) => {
-    switch (tier) {
-      case 3: return 'Platinum';
-      case 2: return 'Gold';
-      case 1: return 'Silver';
-      default: return 'Newcomer';
-    }
-  };
+const payoutLabels: Record<string, string> = {
+  fixed_rotation: "Fixed Rotation",
+  random: "Random",
+  auction: "Auction",
+};
 
-  const getPayoutMethodText = (method: string) => {
-    switch (method) {
-      case 'FixedRotation': return 'Fixed Order';
-      case 'Auction': return 'Auction';
-      case 'Random': return 'Random';
-      default: return 'Fixed Order';
-    }
-  };
-
-  const isUserTurn = circle.nextPayoutRecipient && circle.status === 'Active';
-  const progressPercentage = (circle.currentRound / circle.durationMonths) * 100;
+export default function CircleCard({ circle }: CircleCardProps) {
+  const status = statusConfig[circle.status] || statusConfig.forming;
+  const tier = tierConfig[circle.min_trust_tier] || tierConfig.newcomer;
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <h3 className="font-semibold text-gray-900 mb-1">
-              Circle {circle.id.slice(0, 8)}
-            </h3>
-            <p className="text-sm text-gray-500">
-              {getPayoutMethodText(circle.payoutMethod)} • {circle.durationMonths} months
-            </p>
-          </div>
-          <Badge className={getStatusColor(circle.status)}>
-            {circle.status}
-          </Badge>
-        </div>
-
-        {/* Progress Bar */}
-        {circle.status === 'Active' && (
-          <div className="mb-3">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span>Round {circle.currentRound} of {circle.durationMonths}</span>
-              <span>{Math.round(progressPercentage)}% complete</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${progressPercentage}%` }}
-              />
-            </div>
-          </div>
+    <Link href={`/circles/${circle.id}`}>
+      <Card
+        className={cn(
+          "group relative overflow-hidden cursor-pointer",
+          "hover:border-white/20 hover:bg-white/[0.08]",
+          "transition-all duration-300"
         )}
+      >
+        {/* Subtle gradient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/0 group-hover:from-white/[0.03] group-hover:to-white/[0.01] transition-all duration-300" />
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="flex items-center space-x-2">
-            <DollarSign className="h-4 w-4 text-green-500" />
-            <div>
-              <div className="text-sm text-gray-500">Contribution</div>
-              <div className="font-semibold">${circle.contributionAmount}</div>
+        <CardContent className="relative p-5">
+          {/* Header row: Name + Status */}
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1 min-w-0 mr-3">
+              <h3 className="font-sans font-semibold text-white truncate text-lg">
+                {circle.name || "Unnamed Circle"}
+              </h3>
+              {circle.description && (
+                <p className="text-sm text-white/50 line-clamp-2 mt-1">
+                  {circle.description}
+                </p>
+              )}
             </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Users className="h-4 w-4 text-blue-500" />
-            <div>
-              <div className="text-sm text-gray-500">Members</div>
-              <div className="font-semibold">{circle.currentMembers}/{circle.maxMembers}</div>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Shield className="h-4 w-4 text-purple-500" />
-            <div>
-              <div className="text-sm text-gray-500">Min Trust</div>
-              <div className={`font-semibold ${getTrustTierColor(circle.minTrustTier)}`}>
-                {getTrustTierName(circle.minTrustTier)}
-              </div>
-            </div>
+            <Badge variant={status.variant}>{status.label}</Badge>
           </div>
 
-          {circle.totalYieldEarned > 0 && (
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="h-4 w-4 text-green-500" />
-              <div>
-                <div className="text-sm text-gray-500">Yield Earned</div>
-                <div className="font-semibold text-green-600">
-                  ${circle.totalYieldEarned.toFixed(2)}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+          {/* Contribution amount */}
+          <div className="mb-4">
+            <span className="text-2xl font-sans font-bold text-white">
+              {formatTokenAmount(circle.contribution_amount)}
+            </span>
+            <span className="text-sm text-white/40 ml-1.5">/ month</span>
+          </div>
 
-        {/* Special Status Indicators */}
-        {isUserTurn && (
-          <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center space-x-2">
-              <Star className="h-4 w-4 text-green-600" />
-              <span className="text-sm font-medium text-green-800">
-                It's your turn to receive payout!
+          {/* Info grid */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="flex flex-col">
+              <span className="text-[11px] text-white/40 uppercase tracking-wider mb-0.5">
+                Members
+              </span>
+              <span className="flex items-center gap-1 text-sm text-white/80">
+                <Users className="w-3.5 h-3.5 text-white/50" />
+                {circle.current_members}/{circle.max_members}
+              </span>
+            </div>
+
+            <div className="flex flex-col">
+              <span className="text-[11px] text-white/40 uppercase tracking-wider mb-0.5">
+                Duration
+              </span>
+              <span className="flex items-center gap-1 text-sm text-white/80">
+                <Clock className="w-3.5 h-3.5 text-white/50" />
+                {circle.duration_months}mo
+              </span>
+            </div>
+
+            <div className="flex flex-col">
+              <span className="text-[11px] text-white/40 uppercase tracking-wider mb-0.5">
+                Payout
+              </span>
+              <span className="text-sm text-white/80">
+                {payoutLabels[circle.payout_method] || circle.payout_method}
               </span>
             </div>
           </div>
-        )}
 
-        {/* Action Button */}
-        <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1"
-            disabled={circle.status !== 'Active'}
-          >
-            <Clock className="h-4 w-4 mr-1" />
-            View Details
-          </Button>
-          <Button 
-            size="sm" 
-            className="flex-1"
-            disabled={circle.status !== 'Active'}
-          >
-            <ArrowRight className="h-4 w-4 mr-1" />
-            {isUserTurn ? 'Claim' : 'Contribute'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          {/* Footer: Trust tier + yield + arrow */}
+          <div className="flex items-center justify-between pt-3 border-t border-white/5">
+            <div className="flex items-center gap-2">
+              <Badge variant={tier.variant} className="text-[10px]">
+                {tier.label}
+              </Badge>
+              {circle.total_yield_earned > 0 && (
+                <span className="text-xs text-green-400">
+                  +{formatTokenAmount(circle.total_yield_earned)} yield
+                </span>
+              )}
+            </div>
+            <ArrowRight className="w-4 h-4 text-white/30 group-hover:text-white group-hover:translate-x-1 transition-all" />
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
-

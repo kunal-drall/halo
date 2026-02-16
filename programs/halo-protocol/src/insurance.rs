@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
+use crate::errors::HaloError;
+use crate::state::{Circle, Member, MemberStatus};
+
 #[account]
 pub struct InsurancePool {
     /// The circle this insurance pool belongs to
@@ -175,7 +178,7 @@ pub struct SlashInsurance<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-pub fn stake_insurance(
+pub(crate) fn stake_insurance(
     ctx: Context<StakeInsurance>,
     amount: u64,
 ) -> Result<()> {
@@ -184,11 +187,17 @@ pub fn stake_insurance(
     let circle = &mut ctx.accounts.circle;
     
     // Validate insurance amount (10-20% of contribution)
-    let min_insurance = circle.contribution_amount * 10 / 100;
-    let max_insurance = circle.contribution_amount * 20 / 100;
+    let min_insurance = circle.contribution_amount
+        .checked_mul(10)
+        .and_then(|v| v.checked_div(100))
+        .ok_or(HaloError::ArithmeticOverflow)?;
+    let max_insurance = circle.contribution_amount
+        .checked_mul(20)
+        .and_then(|v| v.checked_div(100))
+        .ok_or(HaloError::ArithmeticOverflow)?;
     
-    require!(amount >= min_insurance, ErrorCode::InsufficientInsurance);
-    require!(amount <= max_insurance, ErrorCode::ExcessiveInsurance);
+    require!(amount >= min_insurance, HaloError::InsufficientInsurance);
+    require!(amount <= max_insurance, HaloError::ExcessiveInsurance);
     
     // Transfer tokens to insurance pool
     let transfer_instruction = Transfer {
@@ -206,8 +215,12 @@ pub fn stake_insurance(
     
     // Update insurance pool
     insurance_pool.circle = circle.key();
-    insurance_pool.total_staked += amount;
-    insurance_pool.available_coverage += amount;
+    insurance_pool.total_staked = insurance_pool.total_staked
+        .checked_add(amount)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+    insurance_pool.available_coverage = insurance_pool.available_coverage
+        .checked_add(amount)
+        .ok_or(HaloError::ArithmeticOverflow)?;
     
     // Add member stake
     insurance_pool.member_stakes.push(MemberStake {
@@ -222,101 +235,150 @@ pub fn stake_insurance(
     Ok(())
 }
 
-pub fn claim_insurance(
+pub(crate) fn claim_insurance(
     ctx: Context<ClaimInsurance>,
     defaulting_member: Pubkey,
 ) -> Result<()> {
-    let insurance_pool = &mut ctx.accounts.insurance_pool;
-    let member = &mut ctx.accounts.member;
-    
-    // Find the defaulting member's stake
-    let defaulting_stake = insurance_pool.member_stakes
-        .iter()
-        .find(|stake| stake.member == defaulting_member)
-        .ok_or(ErrorCode::MemberNotFound)?;
-    
-    // Calculate claimable amount (proportional to member's stake)
-    let total_stake = insurance_pool.total_staked;
-    let member_stake = member.insurance_staked;
-    let claimable_amount = (defaulting_stake.amount_staked * member_stake) / total_stake;
-    
-    require!(claimable_amount > 0, ErrorCode::NoClaimableInsurance);
-    require!(insurance_pool.available_coverage >= claimable_amount, ErrorCode::InsufficientCoverage);
-    
-    // Transfer insurance to member
+    // Calculate claimable amount first without mutable borrow
+    let (claimable_amount, member_authority) = {
+        let insurance_pool = &ctx.accounts.insurance_pool;
+        let member = &ctx.accounts.member;
+
+        // Find the defaulting member's stake
+        let defaulting_stake = insurance_pool.member_stakes
+            .iter()
+            .find(|stake| stake.member == defaulting_member)
+            .ok_or(HaloError::MemberNotFound)?;
+
+        // Calculate claimable amount (proportional to member's stake)
+        let total_stake = insurance_pool.total_staked;
+        let member_stake_amount = member.insurance_staked;
+        let amount = defaulting_stake.amount_staked
+            .checked_mul(member_stake_amount)
+            .and_then(|v| v.checked_div(total_stake))
+            .ok_or(HaloError::ArithmeticOverflow)?;
+
+        require!(amount > 0, HaloError::NoClaimableInsurance);
+        require!(insurance_pool.available_coverage >= amount, HaloError::InsufficientCoverage);
+
+        (amount, member.authority)
+    };
+
+    // Transfer insurance to member (CPI before mutable borrow)
+    // Insurance pool is a PDA - needs signer seeds
+    let circle_key = ctx.accounts.circle.key();
+    let insurance_seeds = &[
+        b"insurance",
+        circle_key.as_ref(),
+        &[ctx.accounts.insurance_pool.bump],
+    ];
+    let insurance_signer = &[&insurance_seeds[..]];
+
     let transfer_instruction = Transfer {
         from: ctx.accounts.insurance_token_account.to_account_info(),
         to: ctx.accounts.member_token_account.to_account_info(),
         authority: ctx.accounts.insurance_pool.to_account_info(),
     };
-    
-    let cpi_ctx = CpiContext::new(
+
+    let cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         transfer_instruction,
+        insurance_signer,
     );
-    
+
     token::transfer(cpi_ctx, claimable_amount)?;
-    
-    // Update insurance pool
-    insurance_pool.available_coverage -= claimable_amount;
-    insurance_pool.claims_paid += claimable_amount;
-    
+
+    // Now borrow mutably and update
+    let insurance_pool = &mut ctx.accounts.insurance_pool;
+    insurance_pool.available_coverage = insurance_pool.available_coverage
+        .checked_sub(claimable_amount)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+    insurance_pool.claims_paid = insurance_pool.claims_paid
+        .checked_add(claimable_amount)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+
     // Mark member as having claimed
-    if let Some(member_stake) = insurance_pool.member_stakes
+    if let Some(stake) = insurance_pool.member_stakes
         .iter_mut()
-        .find(|stake| stake.member == member.authority) {
-        member_stake.can_claim = false;
+        .find(|stake| stake.member == member_authority) {
+        stake.can_claim = false;
     }
-    
+
     Ok(())
 }
 
-pub fn return_insurance_with_bonus(
+pub(crate) fn return_insurance_with_bonus(
     ctx: Context<ReturnInsuranceWithBonus>,
 ) -> Result<()> {
-    let insurance_pool = &mut ctx.accounts.insurance_pool;
-    let member = &mut ctx.accounts.member;
-    
-    // Find member's stake
-    let member_stake = insurance_pool.member_stakes
-        .iter()
-        .find(|stake| stake.member == member.authority)
-        .ok_or(ErrorCode::MemberNotFound)?;
-    
-    // Calculate bonus (5% of original stake)
-    let bonus = member_stake.amount_staked * 5 / 100;
-    let total_return = member_stake.amount_staked + bonus;
-    
-    require!(insurance_pool.available_coverage >= total_return, ErrorCode::InsufficientCoverage);
-    
-    // Transfer insurance + bonus to member
+    // Calculate amounts first without mutable borrow
+    let (total_return, original_stake, member_authority) = {
+        let insurance_pool = &ctx.accounts.insurance_pool;
+        let member = &ctx.accounts.member;
+
+        // Find member's stake
+        let member_stake = insurance_pool.member_stakes
+            .iter()
+            .find(|stake| stake.member == member.authority)
+            .ok_or(HaloError::MemberNotFound)?;
+
+        // Calculate bonus (5% of original stake)
+        let bonus = member_stake.amount_staked
+            .checked_mul(5)
+            .and_then(|v| v.checked_div(100))
+            .ok_or(HaloError::ArithmeticOverflow)?;
+        let return_amount = member_stake.amount_staked
+            .checked_add(bonus)
+            .ok_or(HaloError::ArithmeticOverflow)?;
+
+        require!(insurance_pool.available_coverage >= return_amount, HaloError::InsufficientCoverage);
+
+        (return_amount, member_stake.amount_staked, member.authority)
+    };
+
+    // Transfer insurance + bonus to member (CPI before mutable borrow)
+    // Insurance pool is a PDA - needs signer seeds
+    let circle_key = ctx.accounts.circle.key();
+    let insurance_seeds = &[
+        b"insurance",
+        circle_key.as_ref(),
+        &[ctx.accounts.insurance_pool.bump],
+    ];
+    let insurance_signer = &[&insurance_seeds[..]];
+
     let transfer_instruction = Transfer {
         from: ctx.accounts.insurance_token_account.to_account_info(),
         to: ctx.accounts.member_token_account.to_account_info(),
         authority: ctx.accounts.insurance_pool.to_account_info(),
     };
-    
-    let cpi_ctx = CpiContext::new(
+
+    let cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         transfer_instruction,
+        insurance_signer,
     );
-    
+
     token::transfer(cpi_ctx, total_return)?;
-    
-    // Update insurance pool
-    insurance_pool.available_coverage -= total_return;
-    insurance_pool.total_staked -= member_stake.amount_staked;
-    
+
+    // Now borrow mutably and update
+    let insurance_pool = &mut ctx.accounts.insurance_pool;
+    insurance_pool.available_coverage = insurance_pool.available_coverage
+        .checked_sub(total_return)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+    insurance_pool.total_staked = insurance_pool.total_staked
+        .checked_sub(original_stake)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+
     // Remove member from stakes
-    insurance_pool.member_stakes.retain(|stake| stake.member != member.authority);
-    
+    insurance_pool.member_stakes.retain(|stake| stake.member != member_authority);
+
     // Reset member insurance
+    let member = &mut ctx.accounts.member;
     member.insurance_staked = 0;
-    
+
     Ok(())
 }
 
-pub fn slash_insurance(
+pub(crate) fn slash_insurance(
     ctx: Context<SlashInsurance>,
 ) -> Result<()> {
     let insurance_pool = &mut ctx.accounts.insurance_pool;
@@ -326,14 +388,18 @@ pub fn slash_insurance(
     let member_stake = insurance_pool.member_stakes
         .iter()
         .find(|stake| stake.member == member.authority)
-        .ok_or(ErrorCode::MemberNotFound)?;
+        .ok_or(HaloError::MemberNotFound)?;
     
     // Slash the entire insurance stake
     let slashed_amount = member_stake.amount_staked;
     
     // Update insurance pool
-    insurance_pool.total_staked -= slashed_amount;
-    insurance_pool.available_coverage -= slashed_amount;
+    insurance_pool.total_staked = insurance_pool.total_staked
+        .checked_sub(slashed_amount)
+        .ok_or(HaloError::ArithmeticOverflow)?;
+    insurance_pool.available_coverage = insurance_pool.available_coverage
+        .checked_sub(slashed_amount)
+        .ok_or(HaloError::ArithmeticOverflow)?;
     
     // Remove member from stakes
     insurance_pool.member_stakes.retain(|stake| stake.member != member.authority);
@@ -347,17 +413,4 @@ pub fn slash_insurance(
     Ok(())
 }
 
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Insufficient insurance amount")]
-    InsufficientInsurance,
-    #[msg("Excessive insurance amount")]
-    ExcessiveInsurance,
-    #[msg("Member not found")]
-    MemberNotFound,
-    #[msg("No claimable insurance")]
-    NoClaimableInsurance,
-    #[msg("Insufficient coverage")]
-    InsufficientCoverage,
-}
 

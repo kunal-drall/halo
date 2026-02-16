@@ -1,304 +1,1825 @@
 {
-  "address": "58Fg8uB36CJwb9gqGxSwmR8RYBWrXMwFbTRuW1694qcd",
+  "address": "25yXdB1i6MN7MvRoR17Q5okn3pEktaMEH2QP4wJv3Bs5",
   "metadata": {
     "name": "halo_protocol",
     "version": "0.1.0",
     "spec": "0.1.0",
     "description": "Solana Anchor smart contract for ROSCA circles"
   },
-  "accounts": [
-    {
-      "name": "circle",
-      "discriminator": [174, 152, 111, 252, 45, 169, 233, 217],
-      "size": 512,
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "creator",
-            "type": "publicKey"
-          },
-          {
-            "name": "contribution_amount",
-            "type": "u64"
-          },
-          {
-            "name": "duration_months",
-            "type": "u8"
-          },
-          {
-            "name": "max_members",
-            "type": "u8"
-          },
-          {
-            "name": "current_month",
-            "type": "u8"
-          },
-          {
-            "name": "status",
-            "type": "u8"
-          },
-          {
-            "name": "members",
-            "type": {
-              "vec": "publicKey"
-            }
-          },
-          {
-            "name": "created_at",
-            "type": "i64"
-          },
-          {
-            "name": "last_contribution",
-            "type": "i64"
-          },
-          {
-            "name": "total_contributed",
-            "type": "u64"
-          },
-          {
-            "name": "total_distributed",
-            "type": "u64"
-          },
-          {
-            "name": "penalty_pool",
-            "type": "u64"
-          },
-          {
-            "name": "trust_score_threshold",
-            "type": "u16"
-          },
-          {
-            "name": "governance_enabled",
-            "type": "bool"
-          },
-          {
-            "name": "auction_enabled",
-            "type": "bool"
-          },
-          {
-            "name": "revenue_sharing_enabled",
-            "type": "bool"
-          },
-          {
-            "name": "automation_enabled",
-            "type": "bool"
-          },
-          {
-            "name": "circle_type",
-            "type": "u8"
-          },
-          {
-            "name": "invite_code",
-            "type": "string"
-          },
-          {
-            "name": "metadata_uri",
-            "type": "string"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "member",
-      "discriminator": [29, 149, 6, 208, 236, 21, 196, 195],
-      "size": 256,
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "authority",
-            "type": "publicKey"
-          },
-          {
-            "name": "circle",
-            "type": "publicKey"
-          },
-          {
-            "name": "stake_amount",
-            "type": "u64"
-          },
-          {
-            "name": "contribution_history",
-            "type": {
-              "vec": "u64"
-            }
-          },
-          {
-            "name": "status",
-            "type": "u8"
-          },
-          {
-            "name": "has_received_pot",
-            "type": "bool"
-          },
-          {
-            "name": "trust_score",
-            "type": "u16"
-          },
-          {
-            "name": "social_proofs",
-            "type": {
-              "vec": "string"
-            }
-          },
-          {
-            "name": "defi_activity_score",
-            "type": "u16"
-          },
-          {
-            "name": "penalty_count",
-            "type": "u8"
-          },
-          {
-            "name": "last_contribution",
-            "type": "i64"
-          },
-          {
-            "name": "total_contributed",
-            "type": "u64"
-          },
-          {
-            "name": "total_received",
-            "type": "u64"
-          },
-          {
-            "name": "governance_power",
-            "type": "u64"
-          },
-          {
-            "name": "created_at",
-            "type": "i64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "trustScore",
-      "discriminator": [123, 45, 67, 89, 12, 34, 56, 78],
-      "size": 128,
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "authority",
-            "type": "publicKey"
-          },
-          {
-            "name": "score",
-            "type": "u16"
-          },
-          {
-            "name": "tier",
-            "type": "u8"
-          },
-          {
-            "name": "social_proofs",
-            "type": {
-              "vec": "string"
-            }
-          },
-          {
-            "name": "defi_activity_score",
-            "type": "u16"
-          },
-          {
-            "name": "payment_history_score",
-            "type": "u16"
-          },
-          {
-            "name": "completion_rate",
-            "type": "u16"
-          },
-          {
-            "name": "penalty_count",
-            "type": "u8"
-          },
-          {
-            "name": "last_updated",
-            "type": "i64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "escrow",
-      "discriminator": [87, 65, 43, 21, 98, 76, 54, 32],
-      "size": 64,
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "circle",
-            "type": "publicKey"
-          },
-          {
-            "name": "total_amount",
-            "type": "u64"
-          },
-          {
-            "name": "available_amount",
-            "type": "u64"
-          },
-          {
-            "name": "locked_amount",
-            "type": "u64"
-          },
-          {
-            "name": "penalty_amount",
-            "type": "u64"
-          },
-          {
-            "name": "yield_earned",
-            "type": "u64"
-          },
-          {
-            "name": "last_updated",
-            "type": "i64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    }
-  ],
   "instructions": [
+    {
+      "name": "add_social_proof",
+      "discriminator": [
+        254,
+        188,
+        169,
+        123,
+        51,
+        132,
+        95,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "trust_score",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  95,
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "proof_type",
+          "type": "string"
+        },
+        {
+          "name": "identifier",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "automated_contribution_collection",
+      "discriminator": [
+        61,
+        170,
+        110,
+        125,
+        223,
+        163,
+        178,
+        3
+      ],
+      "accounts": [
+        {
+          "name": "circle_automation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  105,
+                  114,
+                  99,
+                  108,
+                  101,
+                  95,
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_automation.circle",
+                "account": "CircleAutomation"
+              }
+            ]
+          }
+        },
+        {
+          "name": "automation_event",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_automation.circle",
+                "account": "CircleAutomation"
+              },
+              {
+                "kind": "arg",
+                "path": "event_timestamp"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "event_timestamp",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "automated_payout_distribution",
+      "discriminator": [
+        42,
+        105,
+        187,
+        104,
+        70,
+        249,
+        15,
+        55
+      ],
+      "accounts": [
+        {
+          "name": "circle_automation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  105,
+                  114,
+                  99,
+                  108,
+                  101,
+                  95,
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_automation.circle",
+                "account": "CircleAutomation"
+              }
+            ]
+          }
+        },
+        {
+          "name": "automation_event",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_automation.circle",
+                "account": "CircleAutomation"
+              },
+              {
+                "kind": "arg",
+                "path": "event_timestamp"
+              }
+            ]
+          }
+        },
+        {
+          "name": "distribute_pot_accounts",
+          "accounts": [
+            {
+              "name": "circle",
+              "writable": true
+            },
+            {
+              "name": "recipient_member",
+              "writable": true,
+              "pda": {
+                "seeds": [
+                  {
+                    "kind": "const",
+                    "value": [
+                      109,
+                      101,
+                      109,
+                      98,
+                      101,
+                      114
+                    ]
+                  },
+                  {
+                    "kind": "account",
+                    "path": "circle"
+                  },
+                  {
+                    "kind": "account",
+                    "path": "recipient_member.authority",
+                    "account": "Member"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "escrow",
+              "writable": true,
+              "pda": {
+                "seeds": [
+                  {
+                    "kind": "const",
+                    "value": [
+                      101,
+                      115,
+                      99,
+                      114,
+                      111,
+                      119
+                    ]
+                  },
+                  {
+                    "kind": "account",
+                    "path": "circle"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "treasury",
+              "writable": true,
+              "pda": {
+                "seeds": [
+                  {
+                    "kind": "const",
+                    "value": [
+                      116,
+                      114,
+                      101,
+                      97,
+                      115,
+                      117,
+                      114,
+                      121
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "revenue_params",
+              "pda": {
+                "seeds": [
+                  {
+                    "kind": "const",
+                    "value": [
+                      114,
+                      101,
+                      118,
+                      101,
+                      110,
+                      117,
+                      101,
+                      95,
+                      112,
+                      97,
+                      114,
+                      97,
+                      109,
+                      115
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "authority",
+              "signer": true
+            },
+            {
+              "name": "recipient_token_account",
+              "writable": true
+            },
+            {
+              "name": "escrow_token_account",
+              "writable": true
+            },
+            {
+              "name": "treasury_token_account",
+              "writable": true
+            },
+            {
+              "name": "token_program",
+              "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            }
+          ]
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "event_timestamp",
+          "type": "i64"
+        },
+        {
+          "name": "recipient",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "automated_penalty_enforcement",
+      "discriminator": [
+        16,
+        155,
+        131,
+        105,
+        116,
+        162,
+        211,
+        28
+      ],
+      "accounts": [
+        {
+          "name": "circle_automation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  105,
+                  114,
+                  99,
+                  108,
+                  101,
+                  95,
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_automation.circle",
+                "account": "CircleAutomation"
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle"
+        },
+        {
+          "name": "automation_event",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_automation.circle",
+                "account": "CircleAutomation"
+              },
+              {
+                "kind": "arg",
+                "path": "event_timestamp"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "event_timestamp",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "bid_for_payout",
+      "discriminator": [
+        0,
+        158,
+        76,
+        217,
+        163,
+        74,
+        2,
+        5
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "member",
+          "writable": true
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "bid_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "calculate_yield_share",
+      "discriminator": [
+        229,
+        156,
+        10,
+        66,
+        220,
+        81,
+        223,
+        104
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "solend_token_account",
+          "writable": true
+        },
+        {
+          "name": "solend_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cast_vote",
+      "discriminator": [
+        20,
+        212,
+        15,
+        189,
+        69,
+        180,
+        69,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "vote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "voter"
+              }
+            ]
+          }
+        },
+        {
+          "name": "voter",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "voter_token_account"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "support",
+          "type": "bool"
+        },
+        {
+          "name": "voting_power",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_insurance",
+      "discriminator": [
+        96,
+        254,
+        157,
+        145,
+        19,
+        96,
+        95,
+        55
+      ],
+      "accounts": [
+        {
+          "name": "insurance_pool",
+          "writable": true
+        },
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "member",
+          "writable": true
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "insurance_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "defaulting_member",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "claim_payout",
+      "discriminator": [
+        127,
+        240,
+        132,
+        62,
+        227,
+        198,
+        146,
+        133
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "member",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_penalty",
+      "discriminator": [
+        108,
+        136,
+        64,
+        69,
+        46,
+        75,
+        92,
+        4
+      ],
+      "accounts": [
+        {
+          "name": "circle"
+        },
+        {
+          "name": "defaulted_member",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              },
+              {
+                "kind": "account",
+                "path": "defaulted_member.authority",
+                "account": "Member"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claimer",
+          "signer": true
+        },
+        {
+          "name": "claimer_token_account",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "collect_management_fees",
+      "discriminator": [
+        233,
+        93,
+        191,
+        43,
+        70,
+        44,
+        202,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "revenue_params",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  118,
+                  101,
+                  110,
+                  117,
+                  101,
+                  95,
+                  112,
+                  97,
+                  114,
+                  97,
+                  109,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle",
+          "docs": [
+            "Circle account to get escrow reference"
+          ]
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "Escrow account that holds member stakes"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_token_account",
+          "docs": [
+            "Token account holding the escrowed funds"
+          ],
+          "writable": true
+        },
+        {
+          "name": "treasury_token_account",
+          "docs": [
+            "Treasury token account to receive fees"
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Authority that can collect management fees (should be automated/governance)"
+          ],
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "complete_circle_update_trust",
+      "discriminator": [
+        63,
+        180,
+        84,
+        56,
+        232,
+        214,
+        127,
+        181
+      ],
+      "accounts": [
+        {
+          "name": "trust_score",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  95,
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_score.authority",
+                "account": "TrustScore"
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle"
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "contribute",
+      "discriminator": [
+        82,
+        33,
+        68,
+        131,
+        32,
+        0,
+        205,
+        95
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "member",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              },
+              {
+                "kind": "account",
+                "path": "member_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "trust_score",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  95,
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "member_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_auction",
+      "discriminator": [
+        234,
+        6,
+        201,
+        246,
+        47,
+        219,
+        176,
+        107
+      ],
+      "accounts": [
+        {
+          "name": "auction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "initiator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pot_amount",
+          "type": "u64"
+        },
+        {
+          "name": "starting_bid",
+          "type": "u64"
+        },
+        {
+          "name": "duration_hours",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "create_proposal",
+      "discriminator": [
+        132,
+        116,
+        68,
+        174,
+        216,
+        160,
+        198,
+        22
+      ],
+      "accounts": [
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "proposer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        },
+        {
+          "name": "proposal_type",
+          "type": "u8"
+        },
+        {
+          "name": "voting_duration_hours",
+          "type": "u16"
+        },
+        {
+          "name": "execution_threshold",
+          "type": "u64"
+        },
+        {
+          "name": "new_interest_rate",
+          "type": {
+            "option": "u16"
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_revenue_report",
+      "discriminator": [
+        222,
+        42,
+        201,
+        84,
+        236,
+        204,
+        134,
+        52
+      ],
+      "accounts": [
+        {
+          "name": "revenue_report",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  118,
+                  101,
+                  110,
+                  117,
+                  101,
+                  95,
+                  114,
+                  101,
+                  112,
+                  111,
+                  114,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "period_start"
+              },
+              {
+                "kind": "arg",
+                "path": "period_end"
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "period_start",
+          "type": "i64"
+        },
+        {
+          "name": "period_end",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "deposit_to_solend",
+      "discriminator": [
+        90,
+        142,
+        184,
+        9,
+        150,
+        77,
+        142,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "solend_token_account",
+          "writable": true
+        },
+        {
+          "name": "solend_program"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "distribute_pot",
+      "discriminator": [
+        174,
+        253,
+        41,
+        240,
+        254,
+        75,
+        38,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "recipient_member",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              },
+              {
+                "kind": "account",
+                "path": "recipient_member.authority",
+                "account": "Member"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "revenue_params",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  118,
+                  101,
+                  110,
+                  117,
+                  101,
+                  95,
+                  112,
+                  97,
+                  114,
+                  97,
+                  109,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "recipient_token_account",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "treasury_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "distribute_yield",
+      "discriminator": [
+        233,
+        92,
+        186,
+        157,
+        235,
+        238,
+        212,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "revenue_params",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  118,
+                  101,
+                  110,
+                  117,
+                  101,
+                  95,
+                  112,
+                  97,
+                  114,
+                  97,
+                  109,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Authority that controls the source tokens (e.g., Solend integration service)"
+          ],
+          "signer": true
+        },
+        {
+          "name": "source_token_account",
+          "docs": [
+            "Source token account containing yield to distribute"
+          ],
+          "writable": true
+        },
+        {
+          "name": "recipient_token_account",
+          "docs": [
+            "Recipient token account to receive net yield"
+          ],
+          "writable": true
+        },
+        {
+          "name": "treasury_token_account",
+          "docs": [
+            "Treasury token account to receive fees"
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "yield_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "distribute_yield_to_member",
+      "discriminator": [
+        65,
+        233,
+        166,
+        84,
+        211,
+        34,
+        252,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "member",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "execute_proposal",
+      "discriminator": [
+        186,
+        60,
+        116,
+        133,
+        108,
+        128,
+        111,
+        28
+      ],
+      "accounts": [
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "executor",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_automation_state",
+      "discriminator": [
+        244,
+        254,
+        95,
+        22,
+        252,
+        180,
+        90,
+        161
+      ],
+      "accounts": [
+        {
+          "name": "automation_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "switchboard_queue"
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "min_interval",
+          "type": "i64"
+        }
+      ]
+    },
     {
       "name": "initialize_circle",
       "discriminator": [
-        174,
-        152,
-        111,
-        252,
-        45,
-        169,
-        233,
-        217
+        165,
+        209,
+        84,
+        125,
+        187,
+        103,
+        98,
+        90
       ],
       "accounts": [
         {
           "name": "circle",
           "writable": true,
-          "signer": false
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  105,
+                  114,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "arg",
+                "path": "circle_id"
+              }
+            ]
+          }
         },
         {
           "name": "escrow",
           "writable": true,
-          "signer": false
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              }
+            ]
+          }
         },
         {
           "name": "creator",
@@ -307,11 +1828,18 @@
         },
         {
           "name": "system_program",
-          "writable": false,
-          "signer": false
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
+        {
+          "name": "circle_id",
+          "type": "u64"
+        },
         {
           "name": "contribution_amount",
           "type": "u64"
@@ -331,32 +1859,203 @@
       ]
     },
     {
+      "name": "initialize_revenue_params",
+      "discriminator": [
+        109,
+        219,
+        224,
+        162,
+        215,
+        228,
+        160,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "revenue_params",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  118,
+                  101,
+                  110,
+                  117,
+                  101,
+                  95,
+                  112,
+                  97,
+                  114,
+                  97,
+                  109,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_treasury",
+      "discriminator": [
+        124,
+        186,
+        211,
+        195,
+        85,
+        165,
+        129,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_trust_score",
+      "discriminator": [
+        65,
+        88,
+        1,
+        91,
+        11,
+        146,
+        112,
+        171
+      ],
+      "accounts": [
+        {
+          "name": "trust_score",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  95,
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "join_circle",
       "discriminator": [
-        29,
-        149,
-        6,
-        208,
-        236,
-        21,
-        196,
-        195
+        231,
+        168,
+        235,
+        18,
+        99,
+        12,
+        22,
+        7
       ],
       "accounts": [
         {
           "name": "circle",
-          "writable": true,
-          "signer": false
+          "writable": true
         },
         {
           "name": "member",
           "writable": true,
-          "signer": false
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              },
+              {
+                "kind": "account",
+                "path": "member_authority"
+              }
+            ]
+          }
         },
         {
           "name": "escrow",
-          "writable": true,
-          "signer": false
+          "writable": true
         },
         {
           "name": "member_authority",
@@ -364,9 +2063,48 @@
           "signer": true
         },
         {
+          "name": "trust_score",
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  95,
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "member_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
           "name": "system_program",
-          "writable": false,
-          "signer": false
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
@@ -377,37 +2115,480 @@
       ]
     },
     {
-      "name": "contribute",
+      "name": "leave_circle",
       "discriminator": [
-        195,
-        191,
-        113,
-        122,
-        249,
-        252,
-        22,
-        221
+        90,
+        250,
+        45,
+        116,
+        132,
+        126,
+        209,
+        126
       ],
       "accounts": [
         {
           "name": "circle",
-          "writable": true,
-          "signer": false
+          "writable": true
         },
         {
           "name": "member",
           "writable": true,
-          "signer": false
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              },
+              {
+                "kind": "account",
+                "path": "member_authority"
+              }
+            ]
+          }
         },
         {
           "name": "escrow",
           "writable": true,
-          "signer": false
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              }
+            ]
+          }
         },
         {
           "name": "member_authority",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "place_bid",
+      "discriminator": [
+        238,
+        77,
+        148,
+        91,
+        200,
+        151,
+        92,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "auction",
+          "writable": true
+        },
+        {
+          "name": "bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction"
+              },
+              {
+                "kind": "account",
+                "path": "bidder"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bidder",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "member",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction.circle",
+                "account": "Auction"
+              },
+              {
+                "kind": "account",
+                "path": "bidder"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bidder_token_account",
+          "writable": true
+        },
+        {
+          "name": "auction_escrow_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "bid_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "process_payout_round",
+      "discriminator": [
+        225,
+        189,
+        92,
+        201,
+        196,
+        131,
+        220,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "return_insurance_with_bonus",
+      "discriminator": [
+        31,
+        206,
+        169,
+        165,
+        147,
+        138,
+        220,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "insurance_pool",
+          "writable": true
+        },
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "member",
+          "writable": true
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "insurance_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "settle_auction",
+      "discriminator": [
+        246,
+        196,
+        183,
+        98,
+        222,
+        139,
+        46,
+        133
+      ],
+      "accounts": [
+        {
+          "name": "auction",
+          "writable": true
+        },
+        {
+          "name": "settler",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "setup_circle_automation",
+      "discriminator": [
+        80,
+        143,
+        119,
+        254,
+        174,
+        64,
+        93,
+        83
+      ],
+      "accounts": [
+        {
+          "name": "circle_automation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  105,
+                  114,
+                  99,
+                  108,
+                  101,
+                  95,
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "automation_state",
+          "writable": true
+        },
+        {
+          "name": "circle"
+        },
+        {
+          "name": "switchboard_job"
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "auto_collect",
+          "type": "bool"
+        },
+        {
+          "name": "auto_distribute",
+          "type": "bool"
+        },
+        {
+          "name": "auto_penalty",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "slash_insurance",
+      "discriminator": [
+        236,
+        39,
+        144,
+        49,
+        134,
+        106,
+        97,
+        53
+      ],
+      "accounts": [
+        {
+          "name": "insurance_pool",
+          "writable": true
+        },
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "member",
+          "writable": true
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "insurance_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "stake_insurance",
+      "discriminator": [
+        177,
+        2,
+        141,
+        2,
+        215,
+        160,
+        174,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "insurance_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  115,
+                  117,
+                  114,
+                  97,
+                  110,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "member",
+          "writable": true
+        },
+        {
+          "name": "member_authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "insurance_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -418,191 +2599,334 @@
       ]
     },
     {
-      "name": "distribute_pot",
+      "name": "switchboard_automation_callback",
       "discriminator": [
-        231,
-        119,
-        117,
-        243,
-        83,
-        105,
-        54,
-        143
-      ],
-      "accounts": [
-        {
-          "name": "circle",
-          "writable": true,
-          "signer": false
-        },
-        {
-          "name": "recipient_member",
-          "writable": true,
-          "signer": false
-        },
-        {
-          "name": "escrow",
-          "writable": true,
-          "signer": false
-        },
-        {
-          "name": "authority",
-          "writable": false,
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "claim_penalty",
-      "discriminator": [
-        244,
-        190,
-        138,
-        53,
-        207,
-        40,
-        27,
-        187
-      ],
-      "accounts": [
-        {
-          "name": "circle",
-          "writable": true,
-          "signer": false
-        },
-        {
-          "name": "defaulted_member",
-          "writable": true,
-          "signer": false
-        },
-        {
-          "name": "escrow",
-          "writable": true,
-          "signer": false
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "leave_circle",
-      "discriminator": [
-        143,
-        202,
-        209,
+        151,
+        248,
         95,
-        41,
-        57,
-        58,
-        218
+        122,
+        117,
+        241,
+        252,
+        96
       ],
       "accounts": [
         {
-          "name": "circle",
+          "name": "automation_state",
           "writable": true,
-          "signer": false
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
         },
         {
-          "name": "member",
-          "writable": true,
-          "signer": false
-        },
-        {
-          "name": "escrow",
-          "writable": true,
-          "signer": false
-        },
-        {
-          "name": "member_authority",
-          "writable": true,
-          "signer": true
+          "name": "switchboard_feed"
         }
       ],
       "args": []
     },
     {
-      "name": "initialize_trust_score",
+      "name": "update_automation_settings",
       "discriminator": [
-        74,
-        232,
-        208,
-        139,
-        209,
-        124,
-        22,
-        86
+        123,
+        181,
+        49,
+        249,
+        123,
+        57,
+        57,
+        36
+      ],
+      "accounts": [
+        {
+          "name": "automation_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  111,
+                  109,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "automation_state"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "enabled",
+          "type": "bool"
+        },
+        {
+          "name": "min_interval",
+          "type": {
+            "option": "i64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "update_defi_activity_score",
+      "discriminator": [
+        171,
+        179,
+        239,
+        160,
+        199,
+        149,
+        35,
+        32
       ],
       "accounts": [
         {
           "name": "trust_score",
           "writable": true,
-          "signer": false
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  95,
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_score.authority",
+                "account": "TrustScore"
+              }
+            ]
+          }
+        },
+        {
+          "name": "oracle",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "activity_score",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "update_revenue_params",
+      "discriminator": [
+        57,
+        159,
+        77,
+        203,
+        65,
+        250,
+        49,
+        251
+      ],
+      "accounts": [
+        {
+          "name": "revenue_params",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  118,
+                  101,
+                  110,
+                  117,
+                  101,
+                  95,
+                  112,
+                  97,
+                  114,
+                  97,
+                  109,
+                  115
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "authority",
-          "writable": true,
           "signer": true
-        },
-        {
-          "name": "system_program",
-          "writable": false,
-          "signer": false
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "distribution_fee_rate",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "yield_fee_rate",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "management_fee_rate",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "management_fee_interval",
+          "type": {
+            "option": "i64"
+          }
+        }
+      ]
     },
     {
       "name": "update_trust_score",
       "discriminator": [
-        207,
-        34,
-        194,
-        112,
-        241,
-        57,
-        87,
-        156
+        100,
+        231,
+        130,
+        250,
+        180,
+        196,
+        20,
+        248
       ],
       "accounts": [
         {
           "name": "trust_score",
           "writable": true,
-          "signer": false
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  95,
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
         },
         {
           "name": "authority",
-          "writable": false,
           "signer": true
         }
       ],
       "args": []
     },
     {
-      "name": "add_social_proof",
+      "name": "verify_social_proof",
       "discriminator": [
-        143,
-        36,
         179,
-        205,
-        2,
-        168,
-        120,
-        86
+        253,
+        106,
+        39,
+        199,
+        131,
+        53,
+        181
       ],
       "accounts": [
         {
           "name": "trust_score",
           "writable": true,
-          "signer": false
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  95,
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_score.authority",
+                "account": "TrustScore"
+              }
+            ]
+          }
         },
         {
-          "name": "authority",
-          "writable": false,
+          "name": "verifier",
           "signer": true
         }
       ],
@@ -616,61 +2940,2728 @@
           "type": "string"
         }
       ]
+    },
+    {
+      "name": "withdraw_from_solend",
+      "discriminator": [
+        184,
+        116,
+        86,
+        113,
+        79,
+        152,
+        219,
+        169
+      ],
+      "accounts": [
+        {
+          "name": "circle",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "solend_token_account",
+          "writable": true
+        },
+        {
+          "name": "solend_program"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
     {
-      "name": "circle",
+      "name": "Auction",
       "discriminator": [
-        45,
-        175,
         218,
-        53,
-        158,
-        138,
-        66,
-        62
+        94,
+        247,
+        242,
+        126,
+        233,
+        131,
+        81
       ]
     },
     {
-      "name": "member",
+      "name": "AutomationEvent",
       "discriminator": [
-        230,
-        218,
-        113,
-        192,
+        63,
+        101,
+        60,
+        68,
+        211,
+        205,
+        25,
+        36
+      ]
+    },
+    {
+      "name": "AutomationState",
+      "discriminator": [
+        76,
+        54,
+        251,
+        232,
+        35,
+        68,
+        194,
+        101
+      ]
+    },
+    {
+      "name": "Bid",
+      "discriminator": [
+        143,
+        246,
+        48,
+        245,
+        42,
+        145,
+        180,
+        88
+      ]
+    },
+    {
+      "name": "Circle",
+      "discriminator": [
+        27,
+        59,
+        8,
         117,
-        124,
-        233,
-        11
+        62,
+        199,
+        222,
+        252
+      ]
+    },
+    {
+      "name": "CircleAutomation",
+      "discriminator": [
+        175,
+        79,
+        219,
+        59,
+        50,
+        177,
+        242,
+        75
       ]
     },
     {
       "name": "CircleEscrow",
       "discriminator": [
-        145,
-        221,
-        74,
-        98,
-        176,
-        193,
-        73,
-        199
+        53,
+        205,
+        218,
+        31,
+        234,
+        53,
+        5,
+        222
       ]
     },
     {
-      "name": "trustScore",
+      "name": "GovernanceProposal",
       "discriminator": [
-        86,
-        195,
-        163,
-        111,
-        245,
-        25,
-        202,
-        175
+        53,
+        107,
+        240,
+        190,
+        43,
+        73,
+        65,
+        143
+      ]
+    },
+    {
+      "name": "InsurancePool",
+      "discriminator": [
+        239,
+        152,
+        145,
+        201,
+        228,
+        155,
+        139,
+        140
+      ]
+    },
+    {
+      "name": "Member",
+      "discriminator": [
+        54,
+        19,
+        162,
+        21,
+        29,
+        166,
+        17,
+        198
+      ]
+    },
+    {
+      "name": "RevenueParams",
+      "discriminator": [
+        128,
+        51,
+        231,
+        3,
+        126,
+        117,
+        36,
+        220
+      ]
+    },
+    {
+      "name": "RevenueReport",
+      "discriminator": [
+        87,
+        55,
+        187,
+        40,
+        147,
+        141,
+        224,
+        251
+      ]
+    },
+    {
+      "name": "Treasury",
+      "discriminator": [
+        238,
+        239,
+        123,
+        238,
+        89,
+        1,
+        168,
+        253
+      ]
+    },
+    {
+      "name": "TrustScore",
+      "discriminator": [
+        243,
+        22,
+        69,
+        106,
+        84,
+        238,
+        239,
+        5
+      ]
+    },
+    {
+      "name": "Vote",
+      "discriminator": [
+        96,
+        91,
+        104,
+        57,
+        145,
+        35,
+        172,
+        155
       ]
     }
   ],
-  "types": []
+  "events": [
+    {
+      "name": "AuctionCreated",
+      "discriminator": [
+        133,
+        190,
+        194,
+        65,
+        172,
+        0,
+        70,
+        178
+      ]
+    },
+    {
+      "name": "AuctionSettled",
+      "discriminator": [
+        61,
+        151,
+        131,
+        170,
+        95,
+        203,
+        219,
+        147
+      ]
+    },
+    {
+      "name": "BidPlaced",
+      "discriminator": [
+        135,
+        53,
+        176,
+        83,
+        193,
+        69,
+        108,
+        61
+      ]
+    },
+    {
+      "name": "PayoutBidPlaced",
+      "discriminator": [
+        254,
+        236,
+        229,
+        167,
+        212,
+        232,
+        173,
+        105
+      ]
+    },
+    {
+      "name": "PayoutClaimed",
+      "discriminator": [
+        200,
+        39,
+        105,
+        112,
+        116,
+        63,
+        58,
+        149
+      ]
+    },
+    {
+      "name": "PayoutRoundProcessed",
+      "discriminator": [
+        84,
+        151,
+        241,
+        195,
+        107,
+        12,
+        227,
+        9
+      ]
+    },
+    {
+      "name": "ProposalCreated",
+      "discriminator": [
+        186,
+        8,
+        160,
+        108,
+        81,
+        13,
+        51,
+        206
+      ]
+    },
+    {
+      "name": "ProposalExecuted",
+      "discriminator": [
+        92,
+        213,
+        189,
+        201,
+        101,
+        83,
+        111,
+        83
+      ]
+    },
+    {
+      "name": "VoteCast",
+      "discriminator": [
+        39,
+        53,
+        195,
+        104,
+        188,
+        17,
+        225,
+        213
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "CircleFull",
+      "msg": "Circle is full"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidContributionAmount",
+      "msg": "Invalid contribution amount"
+    },
+    {
+      "code": 6002,
+      "name": "MemberAlreadyExists",
+      "msg": "Member already exists in circle"
+    },
+    {
+      "code": 6003,
+      "name": "MemberNotFound",
+      "msg": "Member not found in circle"
+    },
+    {
+      "code": 6004,
+      "name": "CircleNotActive",
+      "msg": "Circle is not active"
+    },
+    {
+      "code": 6005,
+      "name": "InsufficientStake",
+      "msg": "Insufficient stake amount"
+    },
+    {
+      "code": 6006,
+      "name": "ContributionAlreadyMade",
+      "msg": "Contribution already made for this month"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidContributionMonth",
+      "msg": "Cannot contribute for future months"
+    },
+    {
+      "code": 6008,
+      "name": "PotAlreadyDistributed",
+      "msg": "Pot already distributed for this month"
+    },
+    {
+      "code": 6009,
+      "name": "NoContributionsToDistribute",
+      "msg": "No contributions to distribute"
+    },
+    {
+      "code": 6010,
+      "name": "NotAuthorizedToDistribute",
+      "msg": "Not authorized to distribute pot"
+    },
+    {
+      "code": 6011,
+      "name": "MemberAlreadyReceivedPot",
+      "msg": "Member has already received pot"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidPenaltyRate",
+      "msg": "Invalid penalty rate"
+    },
+    {
+      "code": 6013,
+      "name": "MemberInDefault",
+      "msg": "Member is in default"
+    },
+    {
+      "code": 6014,
+      "name": "CannotLeaveActivePeriod",
+      "msg": "Cannot leave circle during active period"
+    },
+    {
+      "code": 6015,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidDuration",
+      "msg": "Invalid duration"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidMaxMembers",
+      "msg": "Invalid max members"
+    },
+    {
+      "code": 6018,
+      "name": "CircleEnded",
+      "msg": "Circle has already ended"
+    },
+    {
+      "code": 6019,
+      "name": "TrustScoreNotFound",
+      "msg": "Trust score account not found"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidTrustTier",
+      "msg": "Invalid trust tier"
+    },
+    {
+      "code": 6021,
+      "name": "InsufficientTrustScore",
+      "msg": "Insufficient trust score"
+    },
+    {
+      "code": 6022,
+      "name": "SocialProofAlreadyExists",
+      "msg": "Social proof already exists"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidSocialProof",
+      "msg": "Invalid social proof"
+    },
+    {
+      "code": 6024,
+      "name": "ProposalNotFound",
+      "msg": "Proposal not found"
+    },
+    {
+      "code": 6025,
+      "name": "ProposalNotActive",
+      "msg": "Proposal not active"
+    },
+    {
+      "code": 6026,
+      "name": "VotingPeriodEnded",
+      "msg": "Voting period has ended"
+    },
+    {
+      "code": 6027,
+      "name": "VotingPeriodNotStarted",
+      "msg": "Voting period has not started"
+    },
+    {
+      "code": 6028,
+      "name": "AlreadyVoted",
+      "msg": "Already voted on this proposal"
+    },
+    {
+      "code": 6029,
+      "name": "InsufficientVotingPower",
+      "msg": "Insufficient voting power"
+    },
+    {
+      "code": 6030,
+      "name": "ExecutionThresholdNotMet",
+      "msg": "Proposal execution threshold not met"
+    },
+    {
+      "code": 6031,
+      "name": "ProposalAlreadyExecuted",
+      "msg": "Proposal already executed"
+    },
+    {
+      "code": 6032,
+      "name": "InvalidProposalType",
+      "msg": "Invalid proposal type"
+    },
+    {
+      "code": 6033,
+      "name": "InvalidVotingPeriod",
+      "msg": "Invalid voting period"
+    },
+    {
+      "code": 6034,
+      "name": "AuctionNotFound",
+      "msg": "Auction not found"
+    },
+    {
+      "code": 6035,
+      "name": "AuctionNotActive",
+      "msg": "Auction not active"
+    },
+    {
+      "code": 6036,
+      "name": "AuctionHasEnded",
+      "msg": "Auction has ended"
+    },
+    {
+      "code": 6037,
+      "name": "BidTooLow",
+      "msg": "Bid too low"
+    },
+    {
+      "code": 6038,
+      "name": "InsufficientStakeForBid",
+      "msg": "Insufficient stake for bid"
+    },
+    {
+      "code": 6039,
+      "name": "CannotBidOnOwnAuction",
+      "msg": "Cannot bid on own auction"
+    },
+    {
+      "code": 6040,
+      "name": "AuctionAlreadySettled",
+      "msg": "Auction already settled"
+    },
+    {
+      "code": 6041,
+      "name": "OnlyWinnerCanClaim",
+      "msg": "Only auction winner can claim"
+    },
+    {
+      "code": 6042,
+      "name": "AuctionNotEnded",
+      "msg": "Auction not ended"
+    },
+    {
+      "code": 6043,
+      "name": "InvalidAuctionDuration",
+      "msg": "Invalid auction duration"
+    },
+    {
+      "code": 6044,
+      "name": "NoPotAvailableForAuction",
+      "msg": "No pot available for auction"
+    },
+    {
+      "code": 6045,
+      "name": "AutomationDisabled",
+      "msg": "Automation is disabled"
+    },
+    {
+      "code": 6046,
+      "name": "AutomationNotScheduled",
+      "msg": "Automation not scheduled at this time"
+    },
+    {
+      "code": 6047,
+      "name": "AutomationTooFrequent",
+      "msg": "Automation check too frequent"
+    },
+    {
+      "code": 6048,
+      "name": "AutomationJobNotFound",
+      "msg": "Automation job not found"
+    },
+    {
+      "code": 6049,
+      "name": "InvalidAutomationConfig",
+      "msg": "Invalid automation configuration"
+    },
+    {
+      "code": 6050,
+      "name": "InvalidFeeRate",
+      "msg": "Invalid fee rate"
+    },
+    {
+      "code": 6051,
+      "name": "TreasuryNotInitialized",
+      "msg": "Treasury not initialized"
+    },
+    {
+      "code": 6052,
+      "name": "UnauthorizedRevenueOperation",
+      "msg": "Unauthorized revenue operation"
+    },
+    {
+      "code": 6053,
+      "name": "RevenueCollectionTooFrequent",
+      "msg": "Revenue collection too frequent"
+    },
+    {
+      "code": 6054,
+      "name": "InvalidRevenueReportPeriod",
+      "msg": "Invalid revenue report period"
+    },
+    {
+      "code": 6055,
+      "name": "NotYourTurn",
+      "msg": "Not your turn to claim payout"
+    },
+    {
+      "code": 6056,
+      "name": "InvalidPayoutMethod",
+      "msg": "Invalid payout method"
+    },
+    {
+      "code": 6057,
+      "name": "AlreadyReceivedPayout",
+      "msg": "Already received payout"
+    },
+    {
+      "code": 6058,
+      "name": "TooEarlyForPayout",
+      "msg": "Too early for payout"
+    },
+    {
+      "code": 6059,
+      "name": "InsufficientInsurance",
+      "msg": "Insufficient insurance amount"
+    },
+    {
+      "code": 6060,
+      "name": "ExcessiveInsurance",
+      "msg": "Excessive insurance amount"
+    },
+    {
+      "code": 6061,
+      "name": "NoClaimableInsurance",
+      "msg": "No claimable insurance"
+    },
+    {
+      "code": 6062,
+      "name": "InsufficientCoverage",
+      "msg": "Insufficient coverage"
+    },
+    {
+      "code": 6063,
+      "name": "BelowMinimumDeposit",
+      "msg": "Deposit amount below minimum threshold"
+    },
+    {
+      "code": 6064,
+      "name": "InsufficientSolendBalance",
+      "msg": "Insufficient Solend balance"
+    },
+    {
+      "code": 6065,
+      "name": "NoClaimableYield",
+      "msg": "No claimable yield"
+    },
+    {
+      "code": 6066,
+      "name": "UnauthorizedMember",
+      "msg": "Unauthorized member"
+    }
+  ],
+  "types": [
+    {
+      "name": "Auction",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "docs": [
+              "Auction ID"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this auction is for"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "initiator",
+            "docs": [
+              "The member who initiated the auction"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "pot_amount",
+            "docs": [
+              "Current month's pot amount being auctioned"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "starting_bid",
+            "docs": [
+              "Starting bid amount"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "highest_bid",
+            "docs": [
+              "Current highest bid"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "highest_bidder",
+            "docs": [
+              "Current highest bidder"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "start_time",
+            "docs": [
+              "Auction start time"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "end_time",
+            "docs": [
+              "Auction end time"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Auction status"
+            ],
+            "type": {
+              "defined": {
+                "name": "AuctionStatus"
+              }
+            }
+          },
+          {
+            "name": "settled",
+            "docs": [
+              "Whether the auction has been settled"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bid_count",
+            "docs": [
+              "Total number of bids placed"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction_id",
+            "type": "u64"
+          },
+          {
+            "name": "circle",
+            "type": "pubkey"
+          },
+          {
+            "name": "initiator",
+            "type": "pubkey"
+          },
+          {
+            "name": "pot_amount",
+            "type": "u64"
+          },
+          {
+            "name": "starting_bid",
+            "type": "u64"
+          },
+          {
+            "name": "end_time",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction_id",
+            "type": "u64"
+          },
+          {
+            "name": "winner",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "winning_bid",
+            "type": "u64"
+          },
+          {
+            "name": "settled_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Ended"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AutomationEvent",
+      "docs": [
+        "Event log for automation actions"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this event relates to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "event_type",
+            "docs": [
+              "Type of automation event"
+            ],
+            "type": {
+              "defined": {
+                "name": "AutomationEventType"
+              }
+            }
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "Timestamp when event occurred"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "data",
+            "docs": [
+              "Event details/data"
+            ],
+            "type": "bytes"
+          },
+          {
+            "name": "success",
+            "docs": [
+              "Whether event was successful"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "error_message",
+            "docs": [
+              "Error message if failed"
+            ],
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AutomationEventType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "ContributionCollection"
+          },
+          {
+            "name": "PayoutDistribution"
+          },
+          {
+            "name": "PenaltyEnforcement"
+          },
+          {
+            "name": "ScheduleUpdate"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AutomationState",
+      "docs": [
+        "Global automation configuration and state"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Authority that can update automation settings"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "switchboard_queue",
+            "docs": [
+              "Switchboard queue account for automation jobs"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "enabled",
+            "docs": [
+              "Automation enabled flag"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "active_jobs",
+            "docs": [
+              "Number of active automation jobs"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "min_interval",
+            "docs": [
+              "Minimum interval between automation checks (in seconds)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "last_check",
+            "docs": [
+              "Last global automation check timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Bid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction",
+            "docs": [
+              "The auction this bid is for"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "bidder",
+            "docs": [
+              "The bidder"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Bid amount"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bidder_stake",
+            "docs": [
+              "Bidder's stake at time of bid"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "When the bid was placed"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "is_highest",
+            "docs": [
+              "Whether this bid is currently the highest"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidPlaced",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction_id",
+            "type": "u64"
+          },
+          {
+            "name": "bidder",
+            "type": "pubkey"
+          },
+          {
+            "name": "bid_amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Circle",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "docs": [
+              "The creator of the circle"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "id",
+            "docs": [
+              "The unique identifier for the circle"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "contribution_amount",
+            "docs": [
+              "Monthly contribution amount in lamports/tokens"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "duration_months",
+            "docs": [
+              "Duration of the circle in months"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "max_members",
+            "docs": [
+              "Maximum number of members allowed"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "current_members",
+            "docs": [
+              "Current number of members"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "current_month",
+            "docs": [
+              "Current month (0-based)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "penalty_rate",
+            "docs": [
+              "Penalty rate in basis points (1% = 100)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Status of the circle"
+            ],
+            "type": {
+              "defined": {
+                "name": "CircleStatus"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "Timestamp when circle was created"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "members",
+            "docs": [
+              "List of member public keys"
+            ],
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "monthly_contributions",
+            "docs": [
+              "Monthly contribution tracking"
+            ],
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "MonthlyContribution"
+                }
+              }
+            }
+          },
+          {
+            "name": "total_pot",
+            "docs": [
+              "Total pot amount collected so far"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "payout_method",
+            "docs": [
+              "ROSCA-specific fields",
+              "Payout method for the circle"
+            ],
+            "type": {
+              "defined": {
+                "name": "PayoutMethod"
+              }
+            }
+          },
+          {
+            "name": "payout_queue",
+            "docs": [
+              "Order of payout recipients"
+            ],
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "payout_bid_amounts",
+            "docs": [
+              "Bid amounts corresponding to payout_queue entries (for auction-based payouts)"
+            ],
+            "type": {
+              "vec": "u64"
+            }
+          },
+          {
+            "name": "min_trust_tier",
+            "docs": [
+              "Minimum trust tier required to join"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "insurance_pool",
+            "docs": [
+              "Insurance pool account"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "circle_type",
+            "docs": [
+              "Circle type (Standard, Auction, Random, Hybrid)"
+            ],
+            "type": {
+              "defined": {
+                "name": "CircleType"
+              }
+            }
+          },
+          {
+            "name": "invite_code",
+            "docs": [
+              "Invite code for private circles"
+            ],
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "is_public",
+            "docs": [
+              "Whether circle is public"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "escrow_account",
+            "docs": [
+              "Escrow account for pooled funds"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "total_yield_earned",
+            "docs": [
+              "Total yield earned from DeFi"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "next_payout_recipient",
+            "docs": [
+              "Next payout recipient"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "CircleAutomation",
+      "docs": [
+        "Per-circle automation configuration"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this automation belongs to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "job_account",
+            "docs": [
+              "Switchboard job account for this circle"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "auto_collect_enabled",
+            "docs": [
+              "Whether contribution collection is automated"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "auto_distribute_enabled",
+            "docs": [
+              "Whether payout distribution is automated"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "auto_penalty_enabled",
+            "docs": [
+              "Whether penalty enforcement is automated"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "contribution_schedule",
+            "docs": [
+              "Monthly contribution collection schedule (unix timestamp)"
+            ],
+            "type": {
+              "vec": "i64"
+            }
+          },
+          {
+            "name": "distribution_schedule",
+            "docs": [
+              "Distribution schedule (unix timestamp)"
+            ],
+            "type": {
+              "vec": "i64"
+            }
+          },
+          {
+            "name": "penalty_schedule",
+            "docs": [
+              "Penalty check schedule (unix timestamp)"
+            ],
+            "type": {
+              "vec": "i64"
+            }
+          },
+          {
+            "name": "last_contribution_check",
+            "docs": [
+              "Last contribution collection timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "last_distribution_check",
+            "docs": [
+              "Last distribution timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "last_penalty_check",
+            "docs": [
+              "Last penalty check timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "circle_created_at",
+            "docs": [
+              "Circle created at timestamp (for calculations)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CircleEscrow",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this escrow belongs to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "total_amount",
+            "docs": [
+              "Total amount held in escrow"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "monthly_pots",
+            "docs": [
+              "Monthly pot amounts"
+            ],
+            "type": {
+              "vec": "u64"
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "total_yield_earned",
+            "docs": [
+              "ROSCA-specific fields",
+              "Total yield earned from DeFi"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "solend_c_token_balance",
+            "docs": [
+              "Solend cToken balance"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_yield_calculation",
+            "docs": [
+              "Last yield calculation timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "member_yield_shares",
+            "docs": [
+              "Yield distribution per member"
+            ],
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "MemberYieldShare"
+                }
+              }
+            }
+          },
+          {
+            "name": "reflect_yield_earned",
+            "docs": [
+              "REFLECT INTEGRATION: Dual yield tracking",
+              "Yield earned from Reflect price appreciation"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "solend_yield_earned",
+            "docs": [
+              "Yield earned from Solend lending"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "reflect_token_type",
+            "docs": [
+              "Reflect token type used (USDC+ or USDJ)"
+            ],
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "ReflectTokenType"
+                }
+              }
+            }
+          },
+          {
+            "name": "reflect_initial_price",
+            "docs": [
+              "Initial Reflect price at deposit"
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CircleStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Forming"
+          },
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Completed"
+          },
+          {
+            "name": "Terminated"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CircleType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Standard"
+          },
+          {
+            "name": "AuctionBased"
+          },
+          {
+            "name": "RandomRotation"
+          },
+          {
+            "name": "Hybrid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ContributionRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "month",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "on_time",
+            "type": "bool"
+          },
+          {
+            "name": "days_late",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GovernanceProposal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "docs": [
+              "Proposal ID"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this proposal affects"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "proposer",
+            "docs": [
+              "Proposal creator"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "title",
+            "docs": [
+              "Proposal title"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "docs": [
+              "Proposal description"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "proposal_type",
+            "docs": [
+              "Proposal type"
+            ],
+            "type": {
+              "defined": {
+                "name": "ProposalType"
+              }
+            }
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Current proposal status"
+            ],
+            "type": {
+              "defined": {
+                "name": "ProposalStatus"
+              }
+            }
+          },
+          {
+            "name": "voting_start",
+            "docs": [
+              "Voting start time"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "voting_end",
+            "docs": [
+              "Voting end time"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "execution_threshold",
+            "docs": [
+              "Minimum voting power required for execution"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_voting_power",
+            "docs": [
+              "Total voting power for this proposal"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "votes_for",
+            "docs": [
+              "Total votes in favor (raw vote count)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "votes_against",
+            "docs": [
+              "Total votes against (raw vote count)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "quadratic_votes_for",
+            "docs": [
+              "Quadratic weighted votes for"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "quadratic_votes_against",
+            "docs": [
+              "Quadratic weighted votes against"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "executed",
+            "docs": [
+              "Has this proposal been executed"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "executed_at",
+            "docs": [
+              "Execution timestamp"
+            ],
+            "type": {
+              "option": "i64"
+            }
+          },
+          {
+            "name": "new_interest_rate",
+            "docs": [
+              "New interest rate (for interest rate proposals)"
+            ],
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InsurancePool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this insurance pool belongs to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "total_staked",
+            "docs": [
+              "Total amount staked by all members"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "available_coverage",
+            "docs": [
+              "Available coverage for claims"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "claims_paid",
+            "docs": [
+              "Total claims paid out"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "member_stakes",
+            "docs": [
+              "Member stakes in this pool"
+            ],
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "MemberStake"
+                }
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Member",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "The member's public key"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this member belongs to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_amount",
+            "docs": [
+              "Member's stake amount"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "contribution_history",
+            "docs": [
+              "Member's contribution history"
+            ],
+            "type": {
+              "vec": "u64"
+            }
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Member's status"
+            ],
+            "type": {
+              "defined": {
+                "name": "MemberStatus"
+              }
+            }
+          },
+          {
+            "name": "has_received_pot",
+            "docs": [
+              "Whether this member has received the pot"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "penalties",
+            "docs": [
+              "Penalties accumulated"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "joined_at",
+            "docs": [
+              "Timestamp when joined"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "trust_score",
+            "docs": [
+              "Current trust score (cached for quick access)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "trust_tier",
+            "docs": [
+              "Trust tier (cached for quick access)"
+            ],
+            "type": {
+              "defined": {
+                "name": "TrustTier"
+              }
+            }
+          },
+          {
+            "name": "contributions_missed",
+            "docs": [
+              "Number of contributions missed in this circle"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "payout_claimed",
+            "docs": [
+              "ROSCA-specific fields",
+              "Whether member has claimed payout"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "payout_position",
+            "docs": [
+              "Position in payout queue"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "insurance_staked",
+            "docs": [
+              "Insurance amount staked"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "contribution_records",
+            "docs": [
+              "Detailed contribution records"
+            ],
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "ContributionRecord"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemberContribution",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "member",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemberStake",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "member",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount_staked",
+            "type": "u64"
+          },
+          {
+            "name": "can_claim",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemberStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Defaulted"
+          },
+          {
+            "name": "Exited"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemberYieldShare",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "member",
+            "type": "pubkey"
+          },
+          {
+            "name": "yield_earned",
+            "type": "u64"
+          },
+          {
+            "name": "yield_claimed",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MonthlyContribution",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "month",
+            "type": "u8"
+          },
+          {
+            "name": "contributions",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "MemberContribution"
+                }
+              }
+            }
+          },
+          {
+            "name": "total_collected",
+            "type": "u64"
+          },
+          {
+            "name": "distributed_to",
+            "type": {
+              "option": "pubkey"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayoutBidPlaced",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "type": "pubkey"
+          },
+          {
+            "name": "member",
+            "type": "pubkey"
+          },
+          {
+            "name": "bid_amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayoutClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "type": "pubkey"
+          },
+          {
+            "name": "member",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "yield_share",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayoutMethod",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "FixedRotation"
+          },
+          {
+            "name": "Auction"
+          },
+          {
+            "name": "Random"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayoutRoundProcessed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "type": "pubkey"
+          },
+          {
+            "name": "current_month",
+            "type": "u8"
+          },
+          {
+            "name": "next_recipient",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "u64"
+          },
+          {
+            "name": "circle",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposer",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposal_type",
+            "type": "u8"
+          },
+          {
+            "name": "voting_end",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalExecuted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "u64"
+          },
+          {
+            "name": "circle",
+            "type": "pubkey"
+          },
+          {
+            "name": "executed_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Succeeded"
+          },
+          {
+            "name": "Defeated"
+          },
+          {
+            "name": "Executed"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "InterestRateChange"
+          },
+          {
+            "name": "CircleParameter"
+          },
+          {
+            "name": "Emergency"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReflectTokenType",
+      "docs": [
+        "Reflect token type"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "USDCPlus"
+          },
+          {
+            "name": "USDJ"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RevenueParams",
+      "docs": [
+        "Revenue parameters that can be adjusted by governance"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Authority that can update parameters (governance)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "distribution_fee_rate",
+            "docs": [
+              "Distribution fee rate in basis points (default: 50 = 0.5%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "yield_fee_rate",
+            "docs": [
+              "Yield fee rate in basis points (default: 25 = 0.25%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "management_fee_rate",
+            "docs": [
+              "Annual management fee rate in basis points (default: 200 = 2%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "management_fee_interval",
+            "docs": [
+              "Minimum interval between management fee collections (seconds)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "last_updated",
+            "docs": [
+              "Last time parameters were updated"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RevenueReport",
+      "docs": [
+        "Revenue report structure for tracking and analytics"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "period_start",
+            "docs": [
+              "Period start timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "period_end",
+            "docs": [
+              "Period end timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "total_period_fees",
+            "docs": [
+              "Total fees collected in this period"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "period_distribution_fees",
+            "docs": [
+              "Distribution fees in this period"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "period_yield_fees",
+            "docs": [
+              "Yield fees in this period"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "period_management_fees",
+            "docs": [
+              "Management fees in this period"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "active_circles",
+            "docs": [
+              "Number of circles active in this period"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "total_distributions",
+            "docs": [
+              "Total amount distributed in this period"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_yield",
+            "docs": [
+              "Total yield generated in this period"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_managed_stake",
+            "docs": [
+              "Total stake amount subject to management fees"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SocialProof",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proof_type",
+            "docs": [
+              "Type of social proof (Twitter, Discord, etc.)"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "identifier",
+            "docs": [
+              "Verification data or identifier"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "verified",
+            "docs": [
+              "Whether this proof is verified"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "Timestamp when proof was added"
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Treasury",
+      "docs": [
+        "Global treasury account that holds all protocol fees"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Authority that can manage treasury (should be governance)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "total_fees_collected",
+            "docs": [
+              "Total fees collected across all categories"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "distribution_fees",
+            "docs": [
+              "Fees from loan distributions (0.5%)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "yield_fees",
+            "docs": [
+              "Fees from interest yield (0.25%)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "management_fees",
+            "docs": [
+              "Management fees from staked amounts (2% annual)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_management_fee_collection",
+            "docs": [
+              "Last time management fees were collected"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TrustScore",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "The user's public key"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "score",
+            "docs": [
+              "Overall trust score (0-1000)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "tier",
+            "docs": [
+              "Current trust tier"
+            ],
+            "type": {
+              "defined": {
+                "name": "TrustTier"
+              }
+            }
+          },
+          {
+            "name": "payment_history_score",
+            "docs": [
+              "Payment history score component (0-400, representing 40%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "completion_score",
+            "docs": [
+              "Circle completion score component (0-300, representing 30%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "defi_activity_score",
+            "docs": [
+              "DeFi activity score component (0-200, representing 20%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "social_proof_score",
+            "docs": [
+              "Social proof score component (0-100, representing 10%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "circles_completed",
+            "docs": [
+              "Number of circles completed successfully"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "circles_joined",
+            "docs": [
+              "Total number of circles joined"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "total_contributions",
+            "docs": [
+              "Total contributions made across all circles"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "missed_contributions",
+            "docs": [
+              "Number of missed contributions"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "social_proofs",
+            "docs": [
+              "Social proofs attached to this user"
+            ],
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "SocialProof"
+                }
+              }
+            }
+          },
+          {
+            "name": "last_updated",
+            "docs": [
+              "Last time trust score was updated"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TrustTier",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Newcomer"
+          },
+          {
+            "name": "Silver"
+          },
+          {
+            "name": "Gold"
+          },
+          {
+            "name": "Platinum"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vote",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal",
+            "docs": [
+              "The proposal this vote is for"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "voter",
+            "docs": [
+              "The voter"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "voting_power",
+            "docs": [
+              "Voting power used"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "quadratic_weight",
+            "docs": [
+              "Quadratic voting weight (square root of voting power)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "support",
+            "docs": [
+              "Vote direction (true = for, false = against)"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "When the vote was cast"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteCast",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "u64"
+          },
+          {
+            "name": "voter",
+            "type": "pubkey"
+          },
+          {
+            "name": "support",
+            "type": "bool"
+          },
+          {
+            "name": "voting_power",
+            "type": "u64"
+          },
+          {
+            "name": "quadratic_weight",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
 }

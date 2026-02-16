@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-declare_id!("58Fg8uB36CJwb9gqGxSwmR8RYBWrXMwFbTRuW1694qcd");
+declare_id!("25yXdB1i6MN7MvRoR17Q5okn3pEktaMEH2QP4wJv3Bs5");
 
 pub mod errors;
 pub mod instructions;
@@ -23,12 +23,13 @@ pub mod halo_protocol {
 
     pub fn initialize_circle(
         ctx: Context<InitializeCircle>,
+        circle_id: u64,
         contribution_amount: u64,
         duration_months: u8,
         max_members: u8,
         penalty_rate: u16, // basis points (1% = 100)
     ) -> Result<()> {
-        instructions::initialize_circle(ctx, contribution_amount, duration_months, max_members, penalty_rate)
+        instructions::initialize_circle(ctx, circle_id, contribution_amount, duration_months, max_members, penalty_rate)
     }
 
     pub fn join_circle(ctx: Context<JoinCircle>, stake_amount: u64) -> Result<()> {
@@ -151,21 +152,24 @@ pub mod halo_protocol {
 
     pub fn automated_contribution_collection(
         ctx: Context<AutomatedContributionCollection>,
+        event_timestamp: i64,
     ) -> Result<()> {
-        instructions::automated_contribution_collection(ctx)
+        instructions::automated_contribution_collection(ctx, event_timestamp)
     }
 
     pub fn automated_payout_distribution(
         ctx: Context<AutomatedPayoutDistribution>,
+        event_timestamp: i64,
         recipient: Pubkey,
     ) -> Result<()> {
-        instructions::automated_payout_distribution(ctx, recipient)
+        instructions::automated_payout_distribution(ctx, event_timestamp, recipient)
     }
 
     pub fn automated_penalty_enforcement(
         ctx: Context<AutomatedPenaltyEnforcement>,
+        event_timestamp: i64,
     ) -> Result<()> {
-        instructions::automated_penalty_enforcement(ctx)
+        instructions::automated_penalty_enforcement(ctx, event_timestamp)
     }
 
     pub fn update_automation_settings(
@@ -261,7 +265,7 @@ pub mod halo_protocol {
         Ok(())
     }
 
-    pub fn distribute_yield_to_member(ctx: Context<DistributeYield>, member: Pubkey) -> Result<()> {
-        yield_integration::distribute_yield(ctx, member)
+    pub fn distribute_yield_to_member(ctx: Context<DistributeMemberYield>, member: Pubkey) -> Result<()> {
+        yield_integration::distribute_member_yield(ctx, member)
     }
 }

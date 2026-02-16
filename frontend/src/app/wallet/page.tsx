@@ -1,366 +1,456 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletWrapper } from '@/components/WalletWrapper';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Wallet, 
-  DollarSign, 
-  TrendingUp, 
-  Shield, 
-  Clock,
+import { useEffect, useState, useCallback } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { motion } from "framer-motion";
+import {
+  Wallet,
+  RefreshCw,
   ArrowUpRight,
-  ArrowDownRight,
-  Plus,
-  History,
-  Settings
-} from 'lucide-react';
-import { UserStats } from '@/types/circles';
-import { circleService } from '@/services/circle-service';
+  ArrowDownLeft,
+  Copy,
+  Check,
+  ExternalLink,
+  Coins,
+  CircleDollarSign,
+  Clock,
+  TrendingUp,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useCircleStore } from "@/stores/circleStore";
+import { shortenAddress, formatDate, timeAgo, cn } from "@/lib/utils";
+import type { ActivityLog } from "@/types";
 
-interface WalletBalance {
-  usdc: number;
-  sol: number;
-  totalValue: number;
+interface TokenBalance {
+  mint: string;
+  symbol: string;
+  balance: number;
+  decimals: number;
+  uiAmount: string;
 }
 
-interface Transaction {
-  id: string;
-  type: 'contribution' | 'payout' | 'insurance' | 'yield';
-  amount: number;
-  circleName: string;
-  timestamp: number;
-  status: 'completed' | 'pending' | 'failed';
+function ConnectWalletPrompt() {
+  return (
+    <div className="flex-1 flex items-center justify-center px-4">
+      <motion.div
+        className="text-center max-w-md"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/10 border border-white/20 mb-6">
+          <Wallet className="w-10 h-10 text-white/70" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-3">
+          Connect Your Wallet
+        </h2>
+        <p className="text-white/50 mb-6">
+          Connect your Solana wallet to view your balances and transaction
+          history.
+        </p>
+      </motion.div>
+    </div>
+  );
 }
 
 export default function WalletPage() {
-  const { connected, publicKey } = useWallet();
-  const [balance, setBalance] = useState<WalletBalance>({ usdc: 0, sol: 0, totalValue: 0 });
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const { publicKey, connected } = useWallet();
+  const { connection } = useConnection();
+  const { userStats } = useCircleStore();
+
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<string>("0.00");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [recentTransactions, setRecentTransactions] = useState<
+    {
+      signature: string;
+      timestamp: number;
+      type: string;
+      status: "success" | "failed";
+    }[]
+  >([]);
 
-  // Load wallet data
-  useEffect(() => {
-    const loadWalletData = async () => {
-      if (connected && publicKey) {
-        try {
-          setLoading(true);
-          
-          // Load user stats
-          const stats = await circleService.getUserStats(publicKey);
-          setUserStats(stats);
+  const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT ||
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
-          // Mock balance data (in real app, would fetch from RPC)
-          setBalance({
-            usdc: 1250.75,
-            sol: 2.5,
-            totalValue: 1250.75 + (2.5 * 100), // Assuming SOL = $100
-          });
+  const loadBalances = useCallback(async () => {
+    if (!publicKey || !connection) return;
 
-          // Mock transaction history
-          setRecentTransactions([
-            {
-              id: '1',
-              type: 'contribution',
-              amount: 200,
-              circleName: 'Tech Professionals',
-              timestamp: Date.now() - 86400000, // 1 day ago
-              status: 'completed'
-            },
-            {
-              id: '2',
-              type: 'payout',
-              amount: 1800,
-              circleName: 'Community Builders',
-              timestamp: Date.now() - 172800000, // 2 days ago
-              status: 'completed'
-            },
-            {
-              id: '3',
-              type: 'yield',
-              amount: 45.32,
-              circleName: 'Crypto Enthusiasts',
-              timestamp: Date.now() - 259200000, // 3 days ago
-              status: 'completed'
-            },
-            {
-              id: '4',
-              type: 'insurance',
-              amount: 30,
-              circleName: 'Students Circle',
-              timestamp: Date.now() - 345600000, // 4 days ago
-              status: 'completed'
-            }
-          ]);
-        } catch (error) {
-          console.error('Error loading wallet data:', error);
-        } finally {
-          setLoading(false);
+    try {
+      // SOL balance
+      const lamports = await connection.getBalance(publicKey);
+      setSolBalance(lamports / LAMPORTS_PER_SOL);
+
+      // USDC balance (SPL Token)
+      try {
+        const usdcMint = new PublicKey(USDC_MINT);
+        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+          publicKey,
+          { mint: usdcMint }
+        );
+        if (tokenAccounts.value.length > 0) {
+          const parsed =
+            tokenAccounts.value[0].account.data.parsed.info.tokenAmount;
+          setUsdcBalance(parsed.uiAmountString || "0.00");
+        } else {
+          setUsdcBalance("0.00");
         }
+      } catch {
+        setUsdcBalance("0.00");
       }
-    };
 
-    loadWalletData();
-  }, [connected, publicKey]);
+      // Recent transactions
+      try {
+        const signatures = await connection.getSignaturesForAddress(
+          publicKey,
+          { limit: 10 }
+        );
+        const txs = signatures.map((sig) => ({
+          signature: sig.signature,
+          timestamp: sig.blockTime || 0,
+          type: "Transaction",
+          status: (sig.err ? "failed" : "success") as "success" | "failed",
+        }));
+        setRecentTransactions(txs);
+      } catch {
+        setRecentTransactions([]);
+      }
+    } catch {
+      // Balance fetch failed
+    } finally {
+      setLoading(false);
+    }
+  }, [publicKey, connection, USDC_MINT]);
+
+  useEffect(() => {
+    if (connected && publicKey) {
+      loadBalances();
+    }
+  }, [connected, publicKey, loadBalances]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadBalances();
+    setRefreshing(false);
+  };
+
+  const copyAddress = () => {
+    if (!publicKey) return;
+    navigator.clipboard.writeText(publicKey.toBase58());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (!connected) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center">
-            <Wallet className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
-            <p className="text-gray-600 mb-6">
-              Connect your Solana wallet to view your balance and transactions
-            </p>
-            <WalletWrapper />
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <ConnectWalletPrompt />;
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-md mx-auto space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case 'contribution': return <ArrowDownRight className="h-4 w-4 text-red-500" />;
-      case 'payout': return <ArrowUpRight className="h-4 w-4 text-green-500" />;
-      case 'yield': return <TrendingUp className="h-4 w-4 text-blue-500" />;
-      case 'insurance': return <Shield className="h-4 w-4 text-purple-500" />;
-      default: return <DollarSign className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
-  const getTransactionColor = (type: string) => {
-    switch (type) {
-      case 'contribution': return 'text-red-600';
-      case 'payout': return 'text-green-600';
-      case 'yield': return 'text-blue-600';
-      case 'insurance': return 'text-purple-600';
-      default: return 'text-gray-600';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'failed': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const walletAddress = publicKey?.toBase58() || "";
+  const totalValue =
+    (solBalance || 0) * 0 + parseFloat(usdcBalance); // SOL price approximation excluded for devnet
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="max-w-md mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Wallet</h1>
-              <p className="text-sm text-gray-500">
-                {publicKey?.toBase58().slice(0, 8)}...{publicKey?.toBase58().slice(-8)}
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4" />
-              </Button>
-              <WalletWrapper />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-md mx-auto p-4 space-y-6">
-        {/* Balance Card */}
-        <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold">Total Balance</h2>
-                <p className="text-blue-100">All assets</p>
-              </div>
-              <Wallet className="h-8 w-8 text-blue-200" />
-            </div>
-            <div className="text-3xl font-bold mb-4">
-              ${balance.totalValue.toFixed(2)}
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <div className="text-blue-100">USDC</div>
-                <div className="font-semibold">${balance.usdc.toFixed(2)}</div>
-              </div>
-              <div>
-                <div className="text-blue-100">SOL</div>
-                <div className="font-semibold">{balance.sol.toFixed(2)}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button className="h-12">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Funds
-          </Button>
-          <Button variant="outline" className="h-12">
-            <History className="h-4 w-4 mr-2" />
-            View All
+    <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 pb-24">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">
+              Wallet
+            </h1>
+            <p className="text-white/50 text-sm">
+              Your balances and transaction history.
+            </p>
+          </motion.div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw
+              className={`w-4 h-4 text-white/60 ${refreshing ? "animate-spin" : ""}`}
+            />
           </Button>
         </div>
 
-        {/* Stats Overview */}
-        {userStats && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Your Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {userStats.circlesJoined}
-                  </div>
-                  <div className="text-sm text-gray-500">Circles Joined</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {userStats.circlesCompleted}
-                  </div>
-                  <div className="text-sm text-gray-500">Completed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">
-                    ${userStats.totalContributions.toFixed(0)}
-                  </div>
-                  <div className="text-sm text-gray-500">Total Contributed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-600">
-                    ${userStats.totalPayouts.toFixed(0)}
-                  </div>
-                  <div className="text-sm text-gray-500">Total Received</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Recent Transactions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <History className="h-5 w-5 mr-2" />
-              Recent Transactions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentTransactions.length === 0 ? (
-              <div className="text-center py-8">
-                <History className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Transactions Yet</h3>
-                <p className="text-gray-500 mb-4">
-                  Your transaction history will appear here
-                </p>
-                <Button variant="outline">
-                  View All Transactions
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentTransactions.map((tx) => (
-                  <div key={tx.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      {getTransactionIcon(tx.type)}
-                      <div>
-                        <div className="font-medium text-gray-900 capitalize">
-                          {tx.type}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {tx.circleName}
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          {new Date(tx.timestamp).toLocaleDateString()}
-                        </div>
-                      </div>
+        <div className="space-y-6">
+          {/* Wallet Address */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+          >
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                      <Wallet className="w-5 h-5 text-white" />
                     </div>
-                    <div className="text-right">
-                      <div className={`font-semibold ${getTransactionColor(tx.type)}`}>
-                        {tx.type === 'contribution' ? '-' : '+'}${tx.amount.toFixed(2)}
-                      </div>
-                      <Badge className={getStatusColor(tx.status)}>
-                        {tx.status}
-                      </Badge>
+                    <div>
+                      <p className="text-xs text-white/40">Connected Wallet</p>
+                      <p className="text-sm text-white font-mono">
+                        {shortenAddress(walletAddress, 8)}
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={copyAddress}
+                      className="h-8 w-8"
+                    >
+                      {copied ? (
+                        <Check className="w-4 h-4 text-green-400" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-white/40" />
+                      )}
+                    </Button>
+                    <a
+                      href={`https://explorer.solana.com/address/${walletAddress}?cluster=devnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <ExternalLink className="w-4 h-4 text-white/40" />
+                      </Button>
+                    </a>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
 
-        {/* Insurance Overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <Shield className="h-5 w-5 mr-2" />
-              Insurance Stakes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Shield className="h-5 w-5 text-purple-500" />
-                  <div>
-                    <div className="font-medium">Tech Professionals</div>
-                    <div className="text-sm text-gray-500">$30.00 staked</div>
+          {/* Balance Cards */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="grid sm:grid-cols-2 gap-4"
+          >
+            {/* SOL Balance */}
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#9945FF] to-[#14F195] flex items-center justify-center">
+                      <Coins className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="text-sm text-white/60">SOL</span>
                   </div>
+                  <Badge variant="outline" className="text-xs">
+                    Native
+                  </Badge>
                 </div>
-                <Badge className="bg-green-100 text-green-800">
-                  Active
-                </Badge>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Shield className="h-5 w-5 text-blue-500" />
-                  <div>
-                    <div className="font-medium">Community Builders</div>
-                    <div className="text-sm text-gray-500">$25.00 staked</div>
+                {loading ? (
+                  <div className="h-8 bg-white/10 rounded w-32 animate-pulse" />
+                ) : (
+                  <p className="text-3xl font-bold text-white">
+                    {solBalance !== null ? solBalance.toFixed(4) : "0.0000"}
+                    <span className="text-lg text-white/40 font-normal ml-1">
+                      SOL
+                    </span>
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* USDC Balance */}
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+                      <CircleDollarSign className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <span className="text-sm text-white/60">USDC</span>
                   </div>
+                  <Badge variant="secondary" className="text-xs">
+                    SPL Token
+                  </Badge>
                 </div>
-                <Badge className="bg-green-100 text-green-800">
-                  Active
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
+                {loading ? (
+                  <div className="h-8 bg-white/10 rounded w-32 animate-pulse" />
+                ) : (
+                  <p className="text-3xl font-bold text-white">
+                    {parseFloat(usdcBalance).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                    <span className="text-lg text-white/40 font-normal ml-1">
+                      USDC
+                    </span>
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Circle Activity Summary */}
+          {userStats && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <Card className="border-white/5 bg-white/[0.02]">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-green-400" />
+                    Circle Activity
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="text-center p-3 rounded-lg bg-white/[0.03]">
+                      <p className="text-xs text-white/40 mb-1">Contributed</p>
+                      <p className="text-lg font-bold text-white">
+                        ${userStats.total_contributed.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-white/[0.03]">
+                      <p className="text-xs text-white/40 mb-1">Received</p>
+                      <p className="text-lg font-bold text-white">
+                        ${userStats.total_received.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-white/[0.03]">
+                      <p className="text-xs text-white/40 mb-1">Yield Earned</p>
+                      <p className="text-lg font-bold text-green-400">
+                        ${userStats.total_yield_earned.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-white/[0.03]">
+                      <p className="text-xs text-white/40 mb-1">
+                        Net Position
+                      </p>
+                      <p
+                        className={cn(
+                          "text-lg font-bold",
+                          userStats.total_received -
+                            userStats.total_contributed >=
+                            0
+                            ? "text-green-400"
+                            : "text-red-400"
+                        )}
+                      >
+                        $
+                        {Math.abs(
+                          userStats.total_received - userStats.total_contributed
+                        ).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Transaction History */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-white/40" />
+                  Recent Transactions
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-14 bg-white/5 rounded-lg animate-pulse"
+                      />
+                    ))}
+                  </div>
+                ) : recentTransactions.length > 0 ? (
+                  <div className="space-y-2">
+                    {recentTransactions.map((tx) => (
+                      <a
+                        key={tx.signature}
+                        href={`https://explorer.solana.com/tx/${tx.signature}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "w-8 h-8 rounded-full flex items-center justify-center",
+                              tx.status === "success"
+                                ? "bg-green-500/10"
+                                : "bg-red-500/10"
+                            )}
+                          >
+                            {tx.status === "success" ? (
+                              <ArrowUpRight className="w-4 h-4 text-green-400" />
+                            ) : (
+                              <ArrowDownLeft className="w-4 h-4 text-red-400" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm text-white font-medium">
+                              {tx.type}
+                            </p>
+                            <p className="text-xs text-white/40 font-mono">
+                              {shortenAddress(tx.signature, 8)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <Badge
+                              variant={
+                                tx.status === "success"
+                                  ? "success"
+                                  : "destructive"
+                              }
+                              className="text-[10px]"
+                            >
+                              {tx.status}
+                            </Badge>
+                            {tx.timestamp > 0 && (
+                              <p className="text-xs text-white/30 mt-0.5">
+                                {timeAgo(tx.timestamp)}
+                              </p>
+                            )}
+                          </div>
+                          <ExternalLink className="w-3.5 h-3.5 text-white/20 group-hover:text-white/40 transition-colors" />
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10">
+                    <Clock className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                    <p className="text-white/40 text-sm">
+                      No recent transactions found.
+                    </p>
+                    <p className="text-white/30 text-xs mt-1">
+                      Transactions will appear here once you start using Halo
+                      Protocol.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+    </main>
   );
 }

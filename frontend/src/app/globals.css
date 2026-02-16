@@ -1,175 +1,215 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Sora:wght@300;400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
- 
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Color Palette - Monochrome Dark Theme */
+    --color-midnight: #0B0F1A;
+    --color-navy: #111827;
+    --color-soft-white: #E5E7EB;
+    --color-neutral: #9CA3AF;
+    --color-white: #FFFFFF;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
- 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
- 
-    /* Deep Indigo Primary - #3A0CA3 */
-    --primary: 262 83% 35%;
-    --primary-foreground: 0 0% 100%;
- 
-    /* Neon Blue Secondary - #4CC9F0 */
-    --secondary: 199 89% 64%;
-    --secondary-foreground: 0 0% 0%;
- 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
- 
-    /* Warm Pink Accent - #F72585 */
-    --accent: 334 70% 55%;
-    --accent-foreground: 0 0% 100%;
- 
-    --destructive: 0 84.2% 60.2%;
+    /* Semantic Colors (HSL for Tailwind compatibility) */
+    --background: 222 47% 7%;
+    --foreground: 220 13% 91%;
+    --card: 222 47% 11%;
+    --card-foreground: 220 13% 91%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 220 13% 91%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 222 47% 7%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 220 13% 91%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 218 11% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 220 13% 91%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 0 0% 100%;
+    --radius: 0.5rem;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 262 83% 35%;
- 
-    --radius: 0.75rem;
+    /* Trust Score Tier Colors */
+    --score-newcomer: #EF4444;
+    --score-silver: #F59E0B;
+    --score-gold: #22C55E;
+    --score-platinum: #10B981;
+
+    /* Status Colors */
+    --status-pending: #F59E0B;
+    --status-active: #22C55E;
+    --status-completed: #6366F1;
+    --status-missed: #EF4444;
+    --status-forming: #F59E0B;
   }
- 
-  .dark {
-    /* Deep navy background for dark theme */
-    --background: 220 13% 4%;
-    --foreground: 210 40% 98%;
-
-    --card: 220 13% 4%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 220 13% 4%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 262 83% 35%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 199 89% 64%;
-    --secondary-foreground: 220 13% 4%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 334 70% 55%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 199 89% 64%;
-  }
-} 
+}
 
 @layer base {
   * {
     @apply border-border;
   }
-  
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-  
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Sora', 'Inter', system-ui, sans-serif;
-  }
-  
-  .font-display {
-    font-family: 'Sora', 'Inter', system-ui, sans-serif;
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-@layer components {
-  .gradient-bg {
-    background: linear-gradient(135deg, #3A0CA3 0%, #4CC9F0 50%, #F72585 100%);
+/* ===========================================
+   Grid Pattern Overlay
+   =========================================== */
+
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* ===========================================
+   Glassmorphism Card Style
+   =========================================== */
+
+.glass-card {
+  background: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius);
+}
+
+/* Legacy glass utilities (backwards compat) */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ===========================================
+   Glow Effects
+   =========================================== */
+
+.glow-white {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+.glow-subtle {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* ===========================================
+   Utility Classes
+   =========================================== */
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-white) 0%, var(--color-neutral) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.border-gradient {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--color-navy), var(--color-navy)) padding-box,
+    linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.05)) border-box;
+}
+
+.gradient-dark {
+  background: linear-gradient(180deg, #0B0F1A 0%, #111827 50%, #0B0F1A 100%);
+}
+
+/* ===========================================
+   Scrollbar Styles
+   =========================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-midnight);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-navy);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ===========================================
+   Animations
+   =========================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  
-  .glass-effect {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-  
-  .trust-glow {
-    box-shadow: 0 0 20px rgba(76, 201, 240, 0.3);
-  }
-  
-  .primary-glow {
-    box-shadow: 0 0 30px rgba(60, 12, 163, 0.4);
-  }
-  
-  .accent-glow {
-    box-shadow: 0 0 25px rgba(247, 37, 133, 0.4);
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-@layer utilities {
-  .text-gradient-primary {
-    background: linear-gradient(135deg, #3A0CA3, #4CC9F0);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
-  .text-gradient-accent {
-    background: linear-gradient(135deg, #4CC9F0, #F72585);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
-  .animate-float {
-    animation: float 3s ease-in-out infinite;
-  }
-  
-  .animate-pulse-slow {
-    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  .border-gradient-primary {
-    border: 2px solid transparent;
-    background: linear-gradient(white, white) padding-box,
-                linear-gradient(to right, #3A0CA3, #4CC9F0) border-box;
-  }
-  
-  .shadow-3xl {
-    box-shadow: 0 35px 60px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  }
-  
-  .backdrop-blur-xs {
-    backdrop-filter: blur(2px);
-  }
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
 }
 
-@keyframes float {
-  0%, 100% { 
-    transform: translateY(0px) rotate(0deg); 
-  }
-  50% { 
-    transform: translateY(-10px) rotate(2deg); 
-  }
-}
-
-@keyframes glow {
+@keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 5px rgba(76, 201, 240, 0.5);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
   }
   50% {
-    box-shadow: 0 0 20px rgba(76, 201, 240, 0.8), 0 0 30px rgba(76, 201, 240, 0.6);
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
   }
 }
 
-.animate-glow {
-  animation: glow 2s ease-in-out infinite alternate;
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ===========================================
+   Trust Score Gauge Styles
+   =========================================== */
+
+.credit-gauge {
+  position: relative;
+}
+
+.credit-gauge-circle {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.credit-gauge-progress {
+  transition: stroke-dasharray 1s ease-out;
+}
+
+/* ===========================================
+   Card Hover Effect
+   =========================================== */
+
+.glass-card-hover {
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.glass-card-hover:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
 }

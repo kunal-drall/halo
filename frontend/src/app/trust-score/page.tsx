@@ -1,523 +1,450 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useAuth } from '@/lib/auth'
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { 
+import { useEffect, useState, useCallback } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { motion } from "framer-motion";
+import {
   Shield,
+  Wallet,
+  Loader2,
+  TrendingUp,
+  CheckCircle2,
   Star,
   Award,
-  CheckCircle,
-  Twitter,
-  Github,
-  MessageCircle,
-  Linkedin,
-  Wallet,
-  Plus,
-  ExternalLink,
-  TrendingUp,
-  Users,
-  History
-} from 'lucide-react'
-import Link from 'next/link'
+  BarChart3,
+  Info,
+} from "lucide-react";
+import TrustScoreWidget from "@/components/trust/TrustScoreWidget";
+import ScoreBreakdown from "@/components/trust/ScoreBreakdown";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { useTrustStore } from "@/stores/trustStore";
+import { useTransactionBuilder } from "@/hooks/useTransactionBuilder";
+import { fetchTrustScore, initializeTrustScoreTx } from "@/services/trust-service";
+import { TRUST_TIERS } from "@/lib/constants";
+import { cn } from "@/lib/utils";
+import type { TrustTier } from "@/types";
+
+const TIER_INFO: Record<
+  string,
+  {
+    label: string;
+    range: string;
+    stake: string;
+    color: string;
+    benefits: string[];
+    badgeVariant: TrustTier;
+  }
+> = {
+  newcomer: {
+    label: "Newcomer",
+    range: "0 - 249",
+    stake: "2x contribution",
+    color: "text-red-400",
+    benefits: [
+      "Access to public circles",
+      "Basic trust features",
+      "Build reputation through participation",
+    ],
+    badgeVariant: "newcomer",
+  },
+  silver: {
+    label: "Silver",
+    range: "250 - 499",
+    stake: "1.5x contribution",
+    color: "text-amber-400",
+    benefits: [
+      "Lower stake requirements",
+      "Access to Silver-tier circles",
+      "Priority in random payout selection",
+    ],
+    badgeVariant: "silver",
+  },
+  gold: {
+    label: "Gold",
+    range: "500 - 749",
+    stake: "1x contribution",
+    color: "text-green-400",
+    benefits: [
+      "Equal stake to contribution",
+      "Access to Gold-tier circles",
+      "Governance voting rights",
+      "Reduced penalty rates",
+    ],
+    badgeVariant: "gold",
+  },
+  platinum: {
+    label: "Platinum",
+    range: "750 - 1000",
+    stake: "0.75x contribution",
+    color: "text-emerald-400",
+    benefits: [
+      "Lowest stake requirements",
+      "Access to all circles",
+      "Circle creation privileges",
+      "Enhanced governance weight",
+      "Yield bonus multiplier",
+    ],
+    badgeVariant: "platinum",
+  },
+};
+
+function ConnectWalletPrompt() {
+  return (
+    <div className="flex-1 flex items-center justify-center px-4">
+      <motion.div
+        className="text-center max-w-md"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/10 border border-white/20 mb-6">
+          <Wallet className="w-10 h-10 text-white/70" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-3">
+          Connect Your Wallet
+        </h2>
+        <p className="text-white/50 mb-6">
+          Connect your Solana wallet to view and manage your trust score.
+        </p>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function TrustScorePage() {
-  const { authenticated } = useAuth()
-  const [activeTab, setActiveTab] = useState('overview')
+  const { publicKey, connected } = useWallet();
+  const {
+    score,
+    tier,
+    breakdown,
+    setBreakdown,
+    setLoading: setStoreLoading,
+    setError: setStoreError,
+    isCacheStale,
+    loading: storeLoading,
+  } = useTrustStore();
+  const {
+    buildAndSend,
+    loading: txLoading,
+    error: txError,
+  } = useTransactionBuilder();
 
-  if (!authenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Wallet className="h-8 w-8 text-primary" />
-            </div>
-            <CardTitle>Connect Your Wallet</CardTitle>
-            <CardDescription>
-              You need to connect your wallet to view your trust score
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center">
-            <WalletMultiButton className="!bg-primary hover:!bg-primary/90" />
-          </CardContent>
-        </Card>
-      </div>
-    )
+  const [initializing, setInitializing] = useState(false);
+  const [initSuccess, setInitSuccess] = useState(false);
+  const [hasScore, setHasScore] = useState<boolean | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
+
+  const loadTrustScore = useCallback(async () => {
+    if (!publicKey) return;
+    const wallet = publicKey.toBase58();
+
+    try {
+      setStoreLoading(true);
+      const data = await fetchTrustScore(wallet);
+      setBreakdown(data);
+      setHasScore(true);
+    } catch {
+      setHasScore(false);
+    } finally {
+      setStoreLoading(false);
+      setPageLoading(false);
+    }
+  }, [publicKey, setBreakdown, setStoreLoading]);
+
+  useEffect(() => {
+    if (connected && publicKey) {
+      if (isCacheStale() || hasScore === null) {
+        loadTrustScore();
+      } else {
+        setPageLoading(false);
+        setHasScore(score > 0 || breakdown !== null);
+      }
+    }
+  }, [connected, publicKey, isCacheStale, loadTrustScore, score, breakdown, hasScore]);
+
+  const handleInitialize = async () => {
+    if (!publicKey) return;
+    setInitializing(true);
+    try {
+      await buildAndSend("/api/trust-score/initialize", {});
+      setInitSuccess(true);
+      setTimeout(() => {
+        loadTrustScore();
+        setInitSuccess(false);
+      }, 2000);
+    } catch {
+      // Error handled by useTransactionBuilder
+    } finally {
+      setInitializing(false);
+    }
+  };
+
+  if (!connected) {
+    return <ConnectWalletPrompt />;
   }
-
-  // Mock data for demonstration
-  const trustScore = {
-    totalScore: 750,
-    tier: 'Silver' as const,
-    baseScore: 400,
-    socialProofs: 200,
-    defiActivity: 100,
-    contributionHistory: 50,
-    completedCircles: 3,
-    breakdown: {
-      socialVerification: { current: 200, max: 300, percentage: 67 },
-      defiActivity: { current: 100, max: 200, percentage: 50 },
-      contributionHistory: { current: 50, max: 150, percentage: 33 },
-      longevity: { current: 100, max: 100, percentage: 100 }
-    }
-  }
-
-  const socialProofs = [
-    {
-      platform: 'Twitter',
-      icon: Twitter,
-      handle: '@johndoe',
-      verified: true,
-      score: 100,
-      description: 'Active Twitter account with crypto engagement'
-    },
-    {
-      platform: 'GitHub',
-      icon: Github,
-      handle: 'johndoe',
-      verified: true,
-      score: 100,
-      description: 'Developer with contributions to DeFi projects'
-    },
-    {
-      platform: 'Discord',
-      icon: MessageCircle,
-      handle: 'johndoe#1234',
-      verified: false,
-      score: 0,
-      description: 'Verify your Discord account'
-    },
-    {
-      platform: 'LinkedIn',
-      icon: Linkedin,
-      handle: 'john-doe',
-      verified: false,
-      score: 0,
-      description: 'Professional networking verification'
-    }
-  ]
-
-  const contributionHistory = [
-    {
-      circle: 'Tech Savers Circle',
-      contributions: 12,
-      onTime: 12,
-      amount: 6000,
-      completed: true
-    },
-    {
-      circle: 'Community Fund',
-      contributions: 7,
-      onTime: 7,
-      amount: 1750,
-      completed: false
-    },
-    {
-      circle: 'Startup Circle',
-      contributions: 5,
-      onTime: 5,
-      amount: 5000,
-      completed: true
-    }
-  ]
-
-  const getTierInfo = (tier: string) => {
-    switch (tier) {
-      case 'Platinum':
-        return {
-          icon: Award,
-          color: 'text-slate-600',
-          bgColor: 'bg-slate-100',
-          minScore: 900,
-          maxScore: 1000,
-          benefits: ['Lowest stake requirements', 'Priority circle placement', 'Governance voting power', 'Premium support']
-        }
-      case 'Gold':
-        return {
-          icon: Star,
-          color: 'text-yellow-600',
-          bgColor: 'bg-yellow-100',
-          minScore: 700,
-          maxScore: 899,
-          benefits: ['Reduced stake requirements', 'Early access to new circles', 'Enhanced voting power', 'Priority support']
-        }
-      case 'Silver':
-        return {
-          icon: Shield,
-          color: 'text-gray-600',
-          bgColor: 'bg-gray-100',
-          minScore: 500,
-          maxScore: 699,
-          benefits: ['Standard stake requirements', 'Access to most circles', 'Basic voting power', 'Standard support']
-        }
-      default:
-        return {
-          icon: CheckCircle,
-          color: 'text-blue-600',
-          bgColor: 'bg-blue-100',
-          minScore: 0,
-          maxScore: 499,
-          benefits: ['Higher stake requirements', 'Limited circle access', 'Basic features only', 'Community support']
-        }
-    }
-  }
-
-  const tierInfo = getTierInfo(trustScore.tier)
-  const TierIcon = tierInfo.icon
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/dashboard" className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-600 flex items-center justify-center">
-                <Shield className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Trust Score
-              </span>
-            </Link>
-            
-            <div className="flex items-center gap-4">
-              <Button variant="outline" asChild>
-                <Link href="/dashboard">Back to Dashboard</Link>
-              </Button>
-              <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !text-sm !py-2 !px-4 !rounded-lg" />
-            </div>
+    <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 pb-24">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">
+            Trust Score
+          </h1>
+          <p className="text-white/50 text-sm">
+            Your on-chain reputation that determines circle access and stake
+            requirements.
+          </p>
+        </motion.div>
+
+        {pageLoading ? (
+          <div className="space-y-6 animate-pulse">
+            <div className="h-48 bg-white/5 rounded-lg border border-white/10" />
+            <div className="h-64 bg-white/5 rounded-lg border border-white/10" />
           </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          {/* Trust Score Overview */}
-          <div className="mb-8">
-            <Card className="relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-pink-500/10" />
-              <CardContent className="p-8 relative">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h1 className="text-3xl font-bold mb-2">Your Trust Score</h1>
-                    <p className="text-muted-foreground">
-                      Build your reputation to unlock better rates and access
-                    </p>
-                  </div>
-                  <Badge className={`${tierInfo.bgColor} ${tierInfo.color} text-lg px-4 py-2`}>
-                    <TierIcon className="h-5 w-5 mr-2" />
-                    {trustScore.tier} Tier
+        ) : hasScore && breakdown ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* Main Score Widget */}
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-8 flex flex-col items-center">
+                <TrustScoreWidget score={score} tier={tier} />
+                <div className="mt-4 text-center">
+                  <Badge
+                    variant={tier as TrustTier}
+                    className="text-sm px-4 py-1"
+                  >
+                    {TIER_INFO[tier]?.label || "Newcomer"} Tier
                   </Badge>
+                  <p className="text-white/40 text-sm mt-2">
+                    Score range: {TIER_INFO[tier]?.range || "0 - 249"}
+                  </p>
                 </div>
+              </CardContent>
+            </Card>
 
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div className="text-center">
-                    <div className="text-6xl font-bold text-purple-600 mb-4">
-                      {trustScore.totalScore}
-                    </div>
-                    <div className="relative w-full bg-gray-200 rounded-full h-4 mb-4">
-                      <div 
-                        className="absolute left-0 top-0 h-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-1000"
-                        style={{ 
-                          width: `${((trustScore.totalScore - tierInfo.minScore) / (tierInfo.maxScore - tierInfo.minScore)) * 100}%` 
-                        }}
-                      />
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {tierInfo.maxScore - trustScore.totalScore} points to next tier
+            {/* Score Breakdown */}
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-white/60" />
+                  Score Breakdown
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScoreBreakdown breakdown={breakdown} />
+              </CardContent>
+            </Card>
+
+            {/* Performance Stats */}
+            <div className="grid sm:grid-cols-3 gap-4">
+              <Card className="border-white/5 bg-white/[0.02]">
+                <CardContent className="p-5 text-center">
+                  <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-white">
+                    {breakdown.circles_completed}
+                  </p>
+                  <p className="text-white/40 text-xs">Circles Completed</p>
+                </CardContent>
+              </Card>
+              <Card className="border-white/5 bg-white/[0.02]">
+                <CardContent className="p-5 text-center">
+                  <Star className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-white">
+                    {breakdown.on_time_payments}/{breakdown.total_payments}
+                  </p>
+                  <p className="text-white/40 text-xs">On-Time Payments</p>
+                </CardContent>
+              </Card>
+              <Card className="border-white/5 bg-white/[0.02]">
+                <CardContent className="p-5 text-center">
+                  <TrendingUp className="w-8 h-8 text-white/60 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-white">
+                    {breakdown.total_payments > 0
+                      ? Math.round(
+                          (breakdown.on_time_payments /
+                            breakdown.total_payments) *
+                            100
+                        )
+                      : 0}
+                    %
+                  </p>
+                  <p className="text-white/40 text-xs">Payment Rate</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tier Explanation */}
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Award className="w-5 h-5 text-white/60" />
+                  Trust Tiers
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {Object.entries(TIER_INFO).map(([key, info]) => {
+                    const isCurrent = key === tier;
+                    return (
+                      <div
+                        key={key}
+                        className={cn(
+                          "p-4 rounded-lg border transition-all",
+                          isCurrent
+                            ? "border-white/20 bg-white/[0.03]"
+                            : "border-white/5 bg-white/[0.02]"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={info.badgeVariant}>
+                              {info.label}
+                            </Badge>
+                            {isCurrent && (
+                              <span className="text-xs text-white/70 font-medium">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-white/40">
+                              Score: {info.range}
+                            </p>
+                            <p className="text-xs text-white/40">
+                              Stake: {info.stake}
+                            </p>
+                          </div>
+                        </div>
+                        <ul className="space-y-1">
+                          {info.benefits.map((benefit) => (
+                            <li
+                              key={benefit}
+                              className="text-xs text-white/50 flex items-start gap-1.5"
+                            >
+                              <CheckCircle2 className="w-3 h-3 mt-0.5 text-white/30 shrink-0" />
+                              {benefit}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* History Placeholder */}
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-green-400" />
+                  Score History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-center py-12 text-center">
+                  <div>
+                    <BarChart3 className="w-12 h-12 text-white/10 mx-auto mb-3" />
+                    <p className="text-white/40 text-sm">
+                      Score history chart coming soon.
                     </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Score Breakdown</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Social Verification</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-blue-500 h-2 rounded-full"
-                              style={{ width: `${trustScore.breakdown.socialVerification.percentage}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-medium w-12">
-                            {trustScore.breakdown.socialVerification.current}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">DeFi Activity</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-green-500 h-2 rounded-full"
-                              style={{ width: `${trustScore.breakdown.defiActivity.percentage}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-medium w-12">
-                            {trustScore.breakdown.defiActivity.current}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Contribution History</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-orange-500 h-2 rounded-full"
-                              style={{ width: `${trustScore.breakdown.contributionHistory.percentage}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-medium w-12">
-                            {trustScore.breakdown.contributionHistory.current}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Account Longevity</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-purple-500 h-2 rounded-full"
-                              style={{ width: `${trustScore.breakdown.longevity.percentage}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-medium w-12">
-                            {trustScore.breakdown.longevity.current}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    <p className="text-white/30 text-xs mt-1">
+                      Track how your trust score evolves over time.
+                    </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          </div>
-
-          {/* Tab Navigation */}
-          <div className="mb-6">
-            <div className="flex space-x-1 bg-muted p-1 rounded-lg w-fit">
-              {[
-                { id: 'overview', label: 'Overview' },
-                { id: 'social', label: 'Social Proofs' },
-                { id: 'history', label: 'History' },
-                { id: 'benefits', label: 'Tier Benefits' }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Tab Content */}
-          <div className="space-y-6">
-            {/* Overview Tab */}
-            {activeTab === 'overview' && (
-              <div className="grid md:grid-cols-3 gap-6">
-                <Card>
-                  <CardContent className="p-6 text-center">
-                    <TrendingUp className="h-8 w-8 text-green-500 mx-auto mb-3" />
-                    <div className="text-2xl font-bold">5.2%</div>
-                    <div className="text-sm text-muted-foreground">Stake Reduction</div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Based on your current trust tier
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-center py-16"
+          >
+            <Card className="border-white/5 bg-white/[0.02] max-w-md w-full">
+              <CardContent className="p-8 text-center">
+                {initSuccess ? (
+                  <>
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/20 border border-green-500/30 mb-6">
+                      <CheckCircle2 className="w-10 h-10 text-green-400" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2">
+                      Trust Score Initialized!
+                    </h2>
+                    <p className="text-white/50 text-sm">
+                      Loading your score...
                     </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6 text-center">
-                    <Users className="h-8 w-8 text-blue-500 mx-auto mb-3" />
-                    <div className="text-2xl font-bold">{trustScore.completedCircles}</div>
-                    <div className="text-sm text-muted-foreground">Circles Completed</div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Perfect contribution record
+                  </>
+                ) : (
+                  <>
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/10 border border-white/20 mb-6">
+                      <Shield className="w-10 h-10 text-white/70" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2">
+                      Initialize Your Trust Score
+                    </h2>
+                    <p className="text-white/50 text-sm mb-6 leading-relaxed">
+                      Create your on-chain trust score account to start building
+                      reputation. Your score starts at 0 (Newcomer tier) and
+                      grows as you participate in circles.
                     </p>
-                  </CardContent>
-                </Card>
 
-                <Card>
-                  <CardContent className="p-6 text-center">
-                    <History className="h-8 w-8 text-purple-500 mx-auto mb-3" />
-                    <div className="text-2xl font-bold">18</div>
-                    <div className="text-sm text-muted-foreground">Months Active</div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Member since early 2023
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* Social Proofs Tab */}
-            {activeTab === 'social' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Social Verification</h3>
-                  <Badge variant="outline">
-                    {socialProofs.filter(p => p.verified).length}/{socialProofs.length} Verified
-                  </Badge>
-                </div>
-                
-                <div className="grid md:grid-cols-2 gap-4">
-                  {socialProofs.map((proof) => {
-                    const Icon = proof.icon
-                    return (
-                      <Card key={proof.platform} className={proof.verified ? 'border-green-200 bg-green-50' : ''}>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className={`p-2 rounded-full ${
-                              proof.verified ? 'bg-green-100' : 'bg-gray-100'
-                            }`}>
-                              <Icon className={`h-4 w-4 ${
-                                proof.verified ? 'text-green-600' : 'text-gray-600'
-                              }`} />
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-semibold">{proof.platform}</h4>
-                                {proof.verified ? (
-                                  <CheckCircle className="h-4 w-4 text-green-500" />
-                                ) : (
-                                  <Plus className="h-4 w-4 text-gray-400" />
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground">{proof.handle}</p>
-                            </div>
-                            <div className="text-right">
-                              <div className="font-semibold text-sm">+{proof.score}</div>
-                              <div className="text-xs text-muted-foreground">points</div>
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-3">{proof.description}</p>
-                          {!proof.verified && (
-                            <Button size="sm" className="w-full">
-                              <ExternalLink className="h-3 w-3 mr-2" />
-                              Verify {proof.platform}
-                            </Button>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* History Tab */}
-            {activeTab === 'history' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Contribution History</h3>
-                <div className="space-y-4">
-                  {contributionHistory.map((history, index) => (
-                    <Card key={index}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold">{history.circle}</h4>
-                          <Badge className={history.completed ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>
-                            {history.completed ? 'Completed' : 'Active'}
-                          </Badge>
+                    <div className="p-3 rounded-lg bg-white/5 border border-white/10 mb-6 text-left">
+                      <div className="flex items-start gap-2">
+                        <Info className="w-4 h-4 text-white/60 mt-0.5 shrink-0" />
+                        <div className="text-xs text-white/50">
+                          <p className="font-medium text-white/70 mb-1">
+                            What happens next:
+                          </p>
+                          <ul className="space-y-0.5">
+                            <li>A trust score PDA is created on-chain</li>
+                            <li>You start at Newcomer tier (score: 0)</li>
+                            <li>
+                              Earn points by completing circles and paying on time
+                            </li>
+                          </ul>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="text-muted-foreground">Contributions</p>
-                            <p className="font-medium">{history.contributions}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">On Time</p>
-                            <p className="font-medium text-green-600">{history.onTime}/{history.contributions}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Total Amount</p>
-                            <p className="font-medium">${history.amount.toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Success Rate</p>
-                            <p className="font-medium">100%</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
+                      </div>
+                    </div>
 
-            {/* Benefits Tab */}
-            {activeTab === 'benefits' && (
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold">Tier Benefits</h3>
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {['Newcomer', 'Silver', 'Gold', 'Platinum'].map((tier) => {
-                    const info = getTierInfo(tier)
-                    const TierIconLocal = info.icon
-                    const isCurrentTier = tier === trustScore.tier
-                    
-                    return (
-                      <Card key={tier} className={isCurrentTier ? 'ring-2 ring-purple-500' : ''}>
-                        <CardHeader className="text-center pb-3">
-                          <div className={`mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full ${info.bgColor}`}>
-                            <TierIconLocal className={`h-6 w-6 ${info.color}`} />
-                          </div>
-                          <CardTitle className="text-lg">{tier}</CardTitle>
-                          <CardDescription>
-                            {info.minScore} - {info.maxScore} points
-                          </CardDescription>
-                          {isCurrentTier && (
-                            <Badge className="mt-2">Current Tier</Badge>
-                          )}
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                          {info.benefits.map((benefit, index) => (
-                            <div key={index} className="flex items-start gap-2">
-                              <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                              <span className="text-sm">{benefit}</span>
-                            </div>
-                          ))}
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+                    {txError && (
+                      <p className="text-red-400 text-sm mb-4">{txError}</p>
+                    )}
 
-          {/* Call to Action */}
-          <Card className="mt-8 bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
-            <CardContent className="p-6 text-center">
-              <h3 className="text-xl font-bold mb-2">Improve Your Trust Score</h3>
-              <p className="text-purple-100 mb-4">
-                Complete social verifications and maintain perfect contribution records to unlock better rates.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button variant="secondary" size="lg">
-                  Verify Social Accounts
-                </Button>
-                <Button variant="outline" size="lg" className="bg-transparent border-white text-white hover:bg-white/10">
-                  Join More Circles
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    </div>
-  )
+                    <Button
+                      onClick={handleInitialize}
+                      disabled={initializing || txLoading}
+                      className="gap-2"
+                      size="lg"
+                    >
+                      {initializing || txLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Initializing...
+                        </>
+                      ) : (
+                        <>
+                          <Shield className="w-4 h-4" />
+                          Initialize Trust Score
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+    </main>
+  );
 }
