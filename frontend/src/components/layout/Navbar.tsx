@@ -40,7 +40,7 @@ const dropdownLinks = [
 export default function Navbar() {
   const pathname = usePathname();
   const { connected, publicKey } = useWallet();
-  const { handleDisconnect } = useAuth();
+  const { isAuthenticated, isAuthenticating, handleDisconnect } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -65,7 +65,7 @@ export default function Navbar() {
     setDropdownOpen(false);
   }, [pathname]);
 
-  const navLinks = connected ? authenticatedLinks : publicLinks;
+  const navLinks = isAuthenticated ? authenticatedLinks : publicLinks;
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0B0F1A]/80 backdrop-blur-md border-b border-white/10">
@@ -96,7 +96,7 @@ export default function Navbar() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {connected && publicKey ? (
+          {isAuthenticated && publicKey ? (
             <>
               {/* Wallet badge */}
               <div className="hidden sm:flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white">
@@ -163,7 +163,10 @@ export default function Navbar() {
               </div>
             </>
           ) : (
-            <div className="hidden md:block">
+            <div className="hidden md:flex items-center gap-2">
+              {isAuthenticating && (
+                <span className="text-xs text-white/40 animate-pulse">Signing in...</span>
+              )}
               <WalletMultiButton />
             </div>
           )}
@@ -202,7 +205,7 @@ export default function Navbar() {
               </Link>
             ))}
 
-            {connected && publicKey && (
+            {isAuthenticated && publicKey && (
               <>
                 <div className="border-t border-white/10 my-2" />
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-neutral-400">
@@ -240,7 +243,7 @@ export default function Navbar() {
               </>
             )}
 
-            {!connected && (
+            {!isAuthenticated && (
               <>
                 <div className="border-t border-white/10 my-2" />
                 <div className="px-3 py-2">

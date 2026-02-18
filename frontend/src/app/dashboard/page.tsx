@@ -19,6 +19,7 @@ import CircleCard from "@/components/circles/CircleCard";
 import TrustScoreWidget from "@/components/trust/TrustScoreWidget";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/WalletContext";
 import { useCircleStore } from "@/stores/circleStore";
 import { useTrustStore } from "@/stores/trustStore";
 import { fetchMyCircles, fetchUserStats } from "@/services/circle-service";
@@ -80,6 +81,7 @@ function ConnectWalletPrompt() {
 
 export default function DashboardPage() {
   const { publicKey, connected } = useWallet();
+  const { isAuthenticated } = useAuth();
   const {
     myCircles,
     userStats,
@@ -168,10 +170,10 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    if (connected && publicKey) {
+    if (isAuthenticated && publicKey) {
       loadDashboardData();
     }
-  }, [connected, publicKey, loadDashboardData]);
+  }, [isAuthenticated, publicKey, loadDashboardData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -183,7 +185,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      {!connected ? (
+      {!isAuthenticated ? (
         <ConnectWalletPrompt />
       ) : (
         <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 pb-24">
