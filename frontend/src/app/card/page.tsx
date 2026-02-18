@@ -1,158 +1,651 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useEffect, FormEvent } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Lock,
+  Unlock,
+  TrendingUp,
+  User,
+  CreditCard,
+  ArrowRight,
+  Check,
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
-const bentoFeatures = [
-  {
-    title: "Vault",
-    description:
-      "Secure on-chain escrow for every lending circle. Funds are held in program-derived accounts that no single party can access outside the smart contract rules.",
-    span: "md:col-span-2",
-    icon: (
-      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-      </svg>
-    ),
-  },
-  {
-    title: "Yield",
-    description:
-      "Idle pool funds are automatically deployed into vetted DeFi protocols on Solana, generating yield that is distributed proportionally to all circle members.",
-    span: "md:col-span-1",
-    icon: (
-      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
-      </svg>
-    ),
-  },
-  {
-    title: "Identity",
-    description:
-      "Your on-chain trust score (0-1000) is your portable, verifiable credit identity. It travels with your wallet — no centralized bureau, no opaque algorithms.",
-    span: "md:col-span-1",
-    icon: (
-      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Credit Card",
-    description:
-      "Coming soon: a Halo-powered credit card backed by your on-chain trust score. Spend in the real world using credit you built through lending circles on Solana.",
-    span: "md:col-span-2",
-    icon: (
-      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-      </svg>
-    ),
-  },
-];
+// ---------- Animated Headline ----------
 
-export default function CardPage() {
-  const [email, setEmail] = useState("");
+const animatedWords = ["Decentralized", "Trustless", "Community", "Empowered"];
+
+function AnimatedHeadline() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % animatedWords.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="relative h-[1.2em] overflow-hidden">
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={animatedWords[currentIndex]}
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -30 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="absolute left-0 text-[#00ff9d] text-glow-green"
+        >
+          {animatedWords[currentIndex]}
+          <span className="animate-typing ml-1">|</span>
+        </motion.span>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ---------- 3D Card ----------
+
+function HaloCard3D() {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <motion.div
+      className="relative perspective-1000"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      animate={{
+        rotateY: isHovered ? 15 : 0,
+        rotateX: isHovered ? -5 : 0,
+      }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      style={{ transformStyle: "preserve-3d" }}
+    >
+      <motion.div
+        className="relative w-[320px] h-[200px] md:w-[400px] md:h-[250px] rounded-2xl overflow-hidden"
+        animate={{ y: [0, -10, 0] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 border border-white/10 rounded-2xl" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-[#00ff9d]/20 via-transparent to-orange-500/10 rounded-2xl" />
+        <div className="absolute top-6 left-6 md:top-8 md:left-8">
+          <div className="mb-4 md:mb-6">
+            <span className="text-2xl md:text-3xl font-bold tracking-wider text-white">
+              HALO
+            </span>
+          </div>
+          <div className="font-mono text-xs md:text-sm text-white/60 tracking-widest">
+            **** **** **** 2847
+          </div>
+        </div>
+        <div className="absolute bottom-6 left-6 right-6 md:bottom-8 md:left-8 md:right-8 flex justify-between items-end">
+          <div>
+            <p className="text-[10px] md:text-xs text-white/40 uppercase tracking-wider mb-1">
+              Cardholder
+            </p>
+            <p className="text-xs md:text-sm font-medium text-white">
+              SATOSHI NAKAMOTO
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] md:text-xs text-white/40 uppercase tracking-wider mb-1">
+              Valid
+            </p>
+            <p className="text-xs md:text-sm font-medium text-white">12/28</p>
+          </div>
+        </div>
+        <div
+          className="absolute inset-0 rounded-2xl transition-all duration-300"
+          style={{
+            boxShadow: isHovered
+              ? "0 0 60px hsl(158 100% 50% / 0.4), 0 25px 50px -12px rgba(0, 0, 0, 0.5)"
+              : "0 0 30px hsl(158 100% 50% / 0.2), 0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          }}
+        />
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ---------- Ticker Marquee ----------
+
+function TickerMarquee() {
+  const items = [
+    "NO HIDDEN FEES",
+    "NON-CUSTODIAL",
+    "BITCOIN SECURED",
+    "STACKS POWERED",
+    "EARN YIELD",
+    "OWN YOUR KEYS",
+    "24/7 ACCESS",
+    "GLOBAL REACH",
+  ];
+
+  const tickerContent = items.map((item, idx) => (
+    <span
+      key={idx}
+      className="inline-flex items-center mx-8 text-sm md:text-base font-semibold tracking-widest text-[#00ff9d] text-glow-green"
+    >
+      {item}
+      <span className="ml-8 text-white/20">&bull;</span>
+    </span>
+  ));
+
+  return (
+    <div className="relative w-full overflow-hidden bg-zinc-900/50 border-y border-white/5 py-4">
+      <motion.div
+        className="flex whitespace-nowrap"
+        animate={{ x: ["0%", "-50%"] }}
+        transition={{
+          x: {
+            duration: 30,
+            repeat: Infinity,
+            ease: "linear",
+            repeatType: "loop",
+          },
+        }}
+      >
+        {tickerContent}
+        {tickerContent}
+      </motion.div>
+    </div>
+  );
+}
+
+// ---------- Bento Cards ----------
+
+function BentoCard({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.5, delay }}
+      className={`glass-card glass-card-hover rounded-2xl p-6 md:p-8 ${className}`}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function VaultCard() {
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  return (
+    <BentoCard className="col-span-1 md:col-span-2 row-span-1">
+      <div className="flex flex-col md:flex-row md:items-center gap-6">
+        <motion.div
+          className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-[#00ff9d]/20 to-[#00ff9d]/5 flex items-center justify-center cursor-pointer"
+          onMouseEnter={() => setIsUnlocked(true)}
+          onMouseLeave={() => setIsUnlocked(false)}
+          whileHover={{ scale: 1.05 }}
+        >
+          <AnimatePresence mode="wait">
+            {isUnlocked ? (
+              <motion.div
+                key="unlocked"
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Unlock className="w-8 h-8 md:w-10 md:h-10 text-[#00ff9d]" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="locked"
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Lock className="w-8 h-8 md:w-10 md:h-10 text-[#00ff9d]" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+        <div className="flex-1">
+          <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
+            The Vault
+          </h3>
+          <p className="text-zinc-400 text-sm md:text-base">
+            Bitcoin L1 Security + Stacks L2 Speed. Your assets protected by the
+            most secure network, with instant transactions when you need them.
+          </p>
+        </div>
+      </div>
+    </BentoCard>
+  );
+}
+
+function YieldCard() {
+  const [count, setCount] = useState(5.42);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCount((prev) => {
+        const next = prev + Math.random() * 0.01;
+        return Math.round(next * 100) / 100;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <BentoCard className="col-span-1 row-span-1 lg:row-span-2" delay={0.1}>
+      <div className="h-full flex flex-col">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-500/5 flex items-center justify-center mb-6">
+          <TrendingUp className="w-7 h-7 text-orange-400" />
+        </div>
+        <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
+          Yield
+        </h3>
+        <p className="text-zinc-400 text-sm mb-6">Earn while you sleep.</p>
+        <div className="mt-auto">
+          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">
+            Current APY
+          </p>
+          <motion.div
+            key={count}
+            initial={{ opacity: 0.5 }}
+            animate={{ opacity: 1 }}
+            className="text-4xl md:text-5xl font-bold text-orange-400 font-mono"
+          >
+            {count.toFixed(2)}%
+          </motion.div>
+        </div>
+      </div>
+    </BentoCard>
+  );
+}
+
+function IdentityCard() {
+  return (
+    <BentoCard className="col-span-1 row-span-1" delay={0.2}>
+      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 flex items-center justify-center mb-4">
+        <User className="w-6 h-6 text-cyan-400" />
+      </div>
+      <h3 className="text-lg md:text-xl font-bold text-white mb-2">
+        Identity
+      </h3>
+      <p className="text-zinc-400 text-sm mb-4">Claim your name.</p>
+      <div className="bg-zinc-900/80 rounded-lg p-3 border border-white/5">
+        <p className="text-xs text-zinc-500 mb-1">Instead of</p>
+        <p className="font-mono text-xs text-white/40 truncate mb-2">
+          0x3f9a2...8b7c
+        </p>
+        <p className="text-xs text-zinc-500 mb-1">You get</p>
+        <p className="font-mono text-sm text-[#00ff9d] font-semibold">
+          kunal.btc
+        </p>
+      </div>
+    </BentoCard>
+  );
+}
+
+function CreditCardFeature() {
+  return (
+    <BentoCard className="col-span-1 row-span-1" delay={0.3}>
+      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-500/5 flex items-center justify-center mb-4">
+        <CreditCard className="w-6 h-6 text-purple-400" />
+      </div>
+      <h3 className="text-lg md:text-xl font-bold text-white mb-2">
+        Credit Card
+      </h3>
+      <p className="text-zinc-400 text-sm mb-4">Spend anywhere.</p>
+      <div className="relative h-20 rounded-lg overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 blur-sm" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-xs font-medium text-white/40 uppercase tracking-wider">
+            Coming Soon
+          </span>
+        </div>
+      </div>
+    </BentoCard>
+  );
+}
+
+// ---------- Waitlist Forms ----------
+
+function useWaitlistSubmit() {
+  const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.trim()) {
+  const submit = async (email: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to join waitlist");
+      }
       setSubmitted(true);
-      setEmail("");
+      toast.success("You're in! We'll notify you when the protocol opens.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Please try again later."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
+  return { loading, submitted, submit };
+}
+
+function useWaitlistCount() {
+  const [count, setCount] = useState(1240);
+
+  useEffect(() => {
+    const load = () => {
+      fetch("/api/waitlist/count")
+        .then((r) => r.json())
+        .then((d) => d.count && setCount(d.count))
+        .catch(() => {});
+    };
+    load();
+    const interval = setInterval(load, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return count;
+}
+
+function HeroWaitlistForm() {
+  const [email, setEmail] = useState("");
+  const [inputFocused, setInputFocused] = useState(false);
+  const { loading, submitted, submit } = useWaitlistSubmit();
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (email) submit(email);
+  };
+
+  if (submitted) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex items-center gap-3 text-[#00ff9d]"
+      >
+        <div className="w-8 h-8 rounded-full bg-[#00ff9d]/20 flex items-center justify-center">
+          <Check className="w-4 h-4" />
+        </div>
+        <span className="font-medium">You&apos;re in the Halo!</span>
+      </motion.div>
+    );
+  }
+
   return (
-    <div className="relative pt-28 pb-20 px-4">
-      <div className="absolute inset-0 grid-pattern pointer-events-none" />
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+      <Input
+        type="email"
+        required
+        placeholder="Enter your email..."
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        onFocus={() => setInputFocused(true)}
+        onBlur={() => setInputFocused(false)}
+        className="h-12 w-full sm:w-72 bg-zinc-900/80 border-white/10 focus:border-[#00ff9d]/50 focus:ring-[#00ff9d]/20 text-white placeholder:text-zinc-500 transition-all duration-300"
+      />
+      <div className="relative group">
+        <motion.div
+          className="absolute -inset-1 bg-gradient-to-r from-[#00ff9d] to-cyan-400 rounded-lg blur transition-all duration-500"
+          animate={{
+            opacity: inputFocused || email.length > 0 ? 0.75 : 0.25,
+          }}
+        />
+        <Button
+          type="submit"
+          disabled={loading}
+          className="relative h-12 px-6 bg-[#00ff9d] text-black font-semibold rounded-lg flex items-center gap-2 w-full sm:w-auto hover:bg-[#00e68a]"
+        >
+          {loading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              Get Early Access
+              <ArrowRight className="w-4 h-4" />
+            </>
+          )}
+        </Button>
+      </div>
+    </form>
+  );
+}
 
-      <div className="relative max-w-6xl mx-auto">
-        {/* Animated Heading */}
-        <div className="text-center mb-20">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gradient mb-6">
-            The Halo Card
-          </h1>
-          <p className="text-white/50 text-lg max-w-2xl mx-auto leading-relaxed">
-            Your on-chain credit reputation, in your pocket. Save with lending
-            circles, build your trust score, and unlock real-world financial
-            access.
+function WaitlistSection() {
+  const [email, setEmail] = useState("");
+  const { loading, submitted, submit } = useWaitlistSubmit();
+  const displayCount = useWaitlistCount();
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (email) submit(email);
+  };
+
+  return (
+    <section className="py-20 md:py-32 px-4">
+      <div className="max-w-3xl mx-auto text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+        >
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+            Join the Beta
+          </h2>
+          <p className="text-zinc-400 text-lg mb-8">
+            Reserve your spot early and be first in line.
           </p>
-        </div>
 
-        {/* Bento Grid */}
-        <div className="grid md:grid-cols-3 gap-6 mb-20">
-          {bentoFeatures.map((feature) => (
-            <div
-              key={feature.title}
-              className={`glass-card p-8 ${feature.span} glass-card-hover`}
-            >
-              <div className="w-14 h-14 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400 mb-6">
-                {feature.icon}
-              </div>
-              <h2 className="text-xl font-bold text-white mb-3">
-                {feature.title}
-              </h2>
-              <p className="text-white/50 leading-relaxed">
-                {feature.description}
-              </p>
-            </div>
-          ))}
-        </div>
+          <motion.div
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#00ff9d]/10 border border-[#00ff9d]/20 mb-8"
+            animate={{
+              boxShadow: [
+                "0 0 20px hsl(158 100% 50% / 0.2)",
+                "0 0 40px hsl(158 100% 50% / 0.4)",
+                "0 0 20px hsl(158 100% 50% / 0.2)",
+              ],
+            }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            <span className="w-2 h-2 rounded-full bg-[#00ff9d] animate-pulse" />
+            <span className="text-sm text-[#00ff9d] font-medium">
+              <motion.span
+                key={displayCount}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                {displayCount.toLocaleString()}
+              </motion.span>{" "}
+              people have joined
+            </span>
+          </motion.div>
 
-        {/* Waitlist Section */}
-        <div className="max-w-xl mx-auto">
-          <div className="glass-card p-8 sm:p-10 text-center border border-violet-500/20">
-            <h2 className="text-2xl font-bold text-white mb-3">
-              Join the Waitlist
-            </h2>
-            <p className="text-white/50 mb-8">
-              Be the first to know when the Halo Card launches. Enter your email
-              to reserve your spot.
-            </p>
-
+          <AnimatePresence mode="wait">
             {submitted ? (
-              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-6">
-                <svg
-                  className="w-10 h-10 text-green-400 mx-auto mb-3"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <p className="text-green-400 font-semibold text-lg">
-                  You are on the list!
+              <motion.div
+                key="success"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-center gap-4"
+              >
+                <div className="w-16 h-16 rounded-full bg-[#00ff9d]/20 flex items-center justify-center">
+                  <Check className="w-8 h-8 text-[#00ff9d]" />
+                </div>
+                <p className="text-lg text-white font-medium">
+                  You&apos;re in the Halo.
                 </p>
-                <p className="text-white/40 text-sm mt-2">
-                  We will notify you when the Halo Card is ready.
+                <p className="text-zinc-400">
+                  We&apos;ll notify you when the protocol opens.
                 </p>
-              </div>
+              </motion.div>
             ) : (
-              <form onSubmit={handleSubmit} className="flex gap-3">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  className="flex-1 rounded-lg bg-white/5 border border-white/10 px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 transition-colors"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-white text-[#0B0F1A] px-6 py-3 font-semibold hover:bg-white/90 transition-colors flex-shrink-0"
+              <motion.div
+                key="form"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <form
+                  onSubmit={handleSubmit}
+                  className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
                 >
-                  Join Waitlist
-                </button>
-              </form>
+                  <Input
+                    type="email"
+                    required
+                    placeholder="Enter your email..."
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="flex-1 h-12 bg-zinc-900/80 border-white/10 focus:border-[#00ff9d]/50 focus:ring-[#00ff9d]/20 text-white placeholder:text-zinc-500"
+                  />
+                  <div className="relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-[#00ff9d] to-cyan-400 rounded-lg blur opacity-25 group-hover:opacity-75 transition-all duration-500" />
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="relative h-12 px-6 bg-[#00ff9d] text-black font-semibold rounded-lg flex items-center gap-1 hover:bg-[#00e68a]"
+                    >
+                      {loading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <>
+                          Get Early Access
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </motion.div>
             )}
+          </AnimatePresence>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+// ---------- Main Page ----------
+
+export default function CardPage() {
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] overflow-x-hidden">
+      {/* Hero */}
+      <section className="relative min-h-screen flex items-center">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#00ff9d]/10 via-[#0a0a0a] to-[#0a0a0a]" />
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMjIiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0aDR2NGgtNHpNMjAgMzBoNHY0aC00ek00MCAyNmg0djRoLTR6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-50" />
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 py-20 md:py-0 w-full">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              className="order-2 lg:order-1"
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00ff9d]/10 border border-[#00ff9d]/20 mb-6">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00ff9d] animate-pulse" />
+                <span className="text-xs text-[#00ff9d] font-medium uppercase tracking-wider">
+                  Now in Beta
+                </span>
+              </div>
+
+              <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-tight mb-2">
+                Your Bitcoin.
+              </h1>
+              <div className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight mb-6">
+                <AnimatedHeadline />
+              </div>
+
+              <p className="text-lg md:text-xl text-zinc-400 max-w-lg mb-8">
+                The first decentralized lending circle protocol on Bitcoin.
+                Build credit, save together, and manage your wealth on-chain.
+              </p>
+
+              <HeroWaitlistForm />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="order-1 lg:order-2 flex justify-center lg:justify-end"
+            >
+              <HaloCard3D />
+            </motion.div>
           </div>
         </div>
-      </div>
+
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
+          <motion.div
+            animate={{ y: [0, 10, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="w-6 h-10 rounded-full border-2 border-white/20 flex items-start justify-center pt-2"
+          >
+            <motion.div
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-1 h-2 rounded-full bg-white/40"
+            />
+          </motion.div>
+        </div>
+      </section>
+
+      <TickerMarquee />
+
+      {/* Why HALO */}
+      <section className="py-20 md:py-32 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+              Stop juggling wallets.
+            </h2>
+            <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto">
+              Banking is broken. We fixed it with Bitcoin. Manage assets, earn
+              yield, and own your identity. No banks. Just code.
+            </p>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="py-10 md:py-20 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            <VaultCard />
+            <YieldCard />
+            <IdentityCard />
+            <CreditCardFeature />
+          </div>
+        </div>
+      </section>
+
+      <WaitlistSection />
     </div>
   );
 }

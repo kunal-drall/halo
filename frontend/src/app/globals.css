@@ -213,3 +213,23 @@
   border-color: rgba(255, 255, 255, 0.15);
   box-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
 }
+
+/* ===========================================
+   Card Page Specific
+   =========================================== */
+
+.text-glow-green {
+  text-shadow: 0 0 20px hsl(158 100% 50% / 0.5);
+}
+
+@keyframes typing {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.animate-typing {
+  animation: typing 1s ease-in-out infinite;
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
