@@ -14,6 +14,7 @@ import {
   User,
   Shield,
   LayoutDashboard,
+  CreditCard,
 } from "lucide-react";
 import { cn, shortenAddress } from "../../lib/utils";
 import { useAuth } from "@/contexts/WalletContext";
@@ -23,12 +24,14 @@ const authenticatedLinks = [
   { href: "/circles", label: "Circles", icon: null },
   { href: "/trust-score", label: "Trust Score", icon: Shield },
   { href: "/yield", label: "Yield", icon: null },
+  { href: "/card", label: "Card", icon: CreditCard },
 ];
 
 const publicLinks = [
   { href: "/features", label: "Features" },
   { href: "/how-it-works", label: "How It Works" },
   { href: "/about", label: "About" },
+  { href: "/card", label: "Card" },
 ];
 
 const dropdownLinks = [

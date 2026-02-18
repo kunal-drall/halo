@@ -89,7 +89,7 @@ function HaloCard3D() {
               Cardholder
             </p>
             <p className="text-xs md:text-sm font-medium text-white">
-              SATOSHI NAKAMOTO
+              KUNAL DRALL
             </p>
           </div>
           <div className="text-right">
@@ -118,8 +118,8 @@ function TickerMarquee() {
   const items = [
     "NO HIDDEN FEES",
     "NON-CUSTODIAL",
-    "BITCOIN SECURED",
-    "STACKS POWERED",
+    "SOLANA SECURED",
+    "USDC POWERED",
     "EARN YIELD",
     "OWN YOUR KEYS",
     "24/7 ACCESS",
@@ -222,7 +222,7 @@ function VaultCard() {
             The Vault
           </h3>
           <p className="text-zinc-400 text-sm md:text-base">
-            Bitcoin L1 Security + Stacks L2 Speed. Your assets protected by the
+            Solana L1 Security + Lightning Speed. Your assets protected by the
             most secure network, with instant transactions when you need them.
           </p>
         </div>
@@ -289,7 +289,7 @@ function IdentityCard() {
         </p>
         <p className="text-xs text-zinc-500 mb-1">You get</p>
         <p className="font-mono text-sm text-[#00ff9d] font-semibold">
-          kunal.btc
+          kunal.halo
         </p>
       </div>
     </BentoCard>
@@ -571,14 +571,14 @@ export default function CardPage() {
               </div>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-tight mb-2">
-                Your Bitcoin.
+                Your Solana.
               </h1>
               <div className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight mb-6">
                 <AnimatedHeadline />
               </div>
 
               <p className="text-lg md:text-xl text-zinc-400 max-w-lg mb-8">
-                The first decentralized lending circle protocol on Bitcoin.
+                The first decentralized lending circle protocol on Solana.
                 Build credit, save together, and manage your wealth on-chain.
               </p>
 
@@ -626,7 +626,7 @@ export default function CardPage() {
               Stop juggling wallets.
             </h2>
             <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto">
-              Banking is broken. We fixed it with Bitcoin. Manage assets, earn
+              Banking is broken. We fixed it with Solana. Manage assets, earn
               yield, and own your identity. No banks. Just code.
             </p>
           </motion.div>
