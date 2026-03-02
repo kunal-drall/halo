@@ -137,4 +137,6 @@ pub enum HaloError {
     NoClaimableYield,
     #[msg("Unauthorized member")]
     UnauthorizedMember,
+    #[msg("Invalid token account")]
+    InvalidTokenAccount,
 }
