@@ -210,8 +210,8 @@ pub(crate) fn contribute(ctx: Context<Contribute>, amount: u64) -> Result<()> {
             .ok_or(HaloError::ArithmeticOverflow)?;
     } else {
         // Ensure we have enough space in the vector
-        let current_len = circle.monthly_contributions.len();
-        while current_len <= current_month as usize {
+        while circle.monthly_contributions.len() <= current_month as usize {
+            let current_len = circle.monthly_contributions.len();
             circle.monthly_contributions.push(MonthlyContribution {
                 month: current_len as u8,
                 contributions: Vec::new(),
@@ -1266,19 +1266,19 @@ pub(crate) fn create_proposal(
 pub(crate) fn cast_vote(
     ctx: Context<CastVote>,
     support: bool,
-    voting_power: u64,
 ) -> Result<()> {
     let proposal = &mut ctx.accounts.proposal;
     let voter = &ctx.accounts.voter;
     let vote_account = &mut ctx.accounts.vote;
     let clock = Clock::get()?;
+    let voting_power = ctx.accounts.voter_token_account.amount;
 
     // Check proposal is active and in voting period
     require!(proposal.is_active(), HaloError::ProposalNotActive);
     require!(clock.unix_timestamp >= proposal.voting_start, HaloError::VotingPeriodNotStarted);
     require!(!proposal.voting_ended(clock.unix_timestamp), HaloError::VotingPeriodEnded);
 
-    // Validate voting power (this should be validated against SPL token balance)
+    // Validate voting power from the provided SPL token balance
     require!(voting_power > 0, HaloError::InsufficientVotingPower);
     
     // Calculate quadratic weight: sqrt(voting_power)
@@ -1546,7 +1546,10 @@ pub struct CastVote<'info> {
     #[account(mut)]
     pub voter: Signer<'info>,
 
-    // SPL Token account for voting power validation
+    // SPL token account used to derive voting power.
+    #[account(
+        constraint = voter_token_account.owner == voter.key() @ HaloError::InvalidTokenAccount
+    )]
     pub voter_token_account: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,

@@ -103,9 +103,8 @@ pub mod halo_protocol {
     pub fn cast_vote(
         ctx: Context<CastVote>,
         support: bool,
-        voting_power: u64,
     ) -> Result<()> {
-        instructions::cast_vote(ctx, support, voting_power)
+        instructions::cast_vote(ctx, support)
     }
 
     pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
